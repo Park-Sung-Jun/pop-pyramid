@@ -994,6 +994,7 @@ const PALETTES = {
   'cool':        ['#f7fcfd','#ccece6','#66c2a4','#41ae76','#238b45','#006d2c','#00441b']
 };
 let mapGeoCache = {};
+let mapFilteredCache = {};
 let _sggNeighborCache = {};
 
 function _simplifyCoords(coords, tol) {
@@ -1141,22 +1142,26 @@ async function renderMap() {
     mapGeoCache[cacheKey] = fc;
   }
 
-  // Filter features for drill-down
+  // Filter features for drill-down (cached per parent to avoid re-simplify on metric/palette change)
   let features = fc.features;
-  if (mapLevel === 'sgg' && mapParent) {
-    features = features.filter(f => f.properties.sidocd === mapParent);
-  } else if (mapLevel === 'emd' && mapParent) {
-    if (!_sggNeighborCache[mapParent]) {
-      const sggCacheKey = `${adkVersion}_sgg`;
-      let sggFc = mapGeoCache[sggCacheKey];
-      if (!sggFc) { sggFc = await adk.get(adkVersion, 'sgg'); mapGeoCache[sggCacheKey] = sggFc; }
-      _computeSggNeighbors(sggFc);
+  const filterKey = `${adkVersion}_${mapLevel}_${mapParent || ''}`;
+  if (mapLevel === 'emd' && mapParent) {
+    if (mapFilteredCache[filterKey]) {
+      features = mapFilteredCache[filterKey];
+    } else {
+      if (!_sggNeighborCache[mapParent]) {
+        const sggCacheKey = `${adkVersion}_sgg`;
+        let sggFc = mapGeoCache[sggCacheKey];
+        if (!sggFc) { sggFc = await adk.get(adkVersion, 'sgg'); mapGeoCache[sggCacheKey] = sggFc; }
+        _computeSggNeighbors(sggFc);
+      }
+      const allowed = _sggNeighborCache[mapParent] || new Set([mapParent]);
+      features = fc.features.filter(f => allowed.has(f.properties.sggcd)).map(f => {
+        if (f.properties.sggcd === mapParent) return f;
+        return { ...f, geometry: _simplifyGeometry(f.geometry, 0.002) };
+      });
+      mapFilteredCache[filterKey] = features;
     }
-    const allowed = _sggNeighborCache[mapParent] || new Set([mapParent]);
-    features = features.filter(f => allowed.has(f.properties.sggcd)).map(f => {
-      if (f.properties.sggcd === mapParent) return f;
-      return { ...f, geometry: _simplifyGeometry(f.geometry, 0.001) };
-    });
   }
 
   const filteredFc = { type: 'FeatureCollection', features };
@@ -1177,7 +1182,8 @@ async function renderMap() {
       const code = getCodeFromFeature(f, mapLevel);
       const v = getMetricValue(code);
       const isSelected = code === S.selected || S.selected?.startsWith(code);
-      const isNeighbor = (mapLevel === 'emd' && mapParent && f.properties.sggcd !== mapParent);
+      const isNeighbor = (mapLevel === 'emd' && mapParent && f.properties.sggcd !== mapParent)
+        || (mapLevel === 'sgg' && mapParent && f.properties.sidocd !== mapParent);
       return {
         fillColor: scale.getColor(v),
         fillOpacity: isNeighbor ? 0.45 : 0.75,
@@ -1268,6 +1274,13 @@ async function renderMap() {
   if (mapLevel === 'emd' && mapParent) {
     const primaryLayers = [];
     mapLayer.eachLayer(l => { if (l.feature.properties.sggcd === mapParent) primaryLayers.push(l); });
+    if (primaryLayers.length) {
+      const group = L.featureGroup(primaryLayers);
+      try { map.fitBounds(group.getBounds(), { padding: [40, 40] }); } catch(e) {}
+    }
+  } else if (mapLevel === 'sgg' && mapParent) {
+    const primaryLayers = [];
+    mapLayer.eachLayer(l => { if (l.feature.properties.sidocd === mapParent) primaryLayers.push(l); });
     if (primaryLayers.length) {
       const group = L.featureGroup(primaryLayers);
       try { map.fitBounds(group.getBounds(), { padding: [40, 40] }); } catch(e) {}

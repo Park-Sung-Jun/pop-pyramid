@@ -1,0 +1,1022 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>인구피라미드 탐색기</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Black+Han+Sans&family=Gothic+A1:wght@400;600;800&family=IBM+Plex+Mono:wght@400;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<style>
+:root {
+  --male:#4A90D9;--female:#E8597C;
+  --lift-pos:#E74C3C;--lift-neg:#2E86AB;
+  --sidebar:#1B2838;--sidebar-hover:#243447;
+  --bg:#F0F4F8;--surface:#fff;--border:#E2E8F0;
+  --accent:#3498DB;--accent-dark:#2980B9;
+  --t1:#1A202C;--t2:#4A5568;--t3:#718096;--t4:#A0AEC0;
+  --radius:10px;--shadow:0 2px 12px rgba(0,0,0,.06);
+}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'Gothic A1',sans-serif;background:var(--bg);color:var(--t1);min-height:100vh;display:flex}
+.mono{font-family:'IBM Plex Mono',monospace}
+.logo-font{font-family:'Black Han Sans',sans-serif}
+
+/* Sidebar */
+.sidebar{width:280px;min-height:100vh;background:var(--sidebar);color:#fff;padding:20px 16px;display:flex;flex-direction:column;gap:20px;position:fixed;left:0;top:0;bottom:0;overflow-y:auto;z-index:100}
+.sidebar::-webkit-scrollbar{width:4px}
+.sidebar::-webkit-scrollbar-thumb{background:rgba(255,255,255,.2);border-radius:2px}
+.sidebar h1{font-size:1.3rem;letter-spacing:-.5px;display:flex;align-items:center;gap:8px}
+.sidebar h1 .icon{font-size:1.5rem}
+.sidebar-section{background:rgba(255,255,255,.06);border-radius:8px;padding:14px}
+.sidebar-section h3{font-size:.75rem;text-transform:uppercase;letter-spacing:1.5px;color:var(--t4);margin-bottom:10px}
+.sidebar-section select{width:100%;padding:8px 10px;background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.15);border-radius:6px;color:#fff;font-size:.85rem;font-family:inherit;margin-bottom:8px;cursor:pointer;appearance:none;-webkit-appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23fff' d='M6 8L1 3h10z'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 10px center}
+.sidebar-section select option{background:var(--sidebar);color:#fff}
+.sidebar-section select:focus{outline:none;border-color:var(--accent)}
+.control-presets{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+.preset-btn{padding:5px 10px;font-size:.75rem;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.12);border-radius:16px;color:#ccc;cursor:pointer;font-family:inherit;transition:all .15s}
+.preset-btn:hover,.preset-btn.active{background:var(--accent);border-color:var(--accent);color:#fff}
+.data-date{font-size:.7rem;color:var(--t4);text-align:center;margin-top:auto;padding-top:12px;border-top:1px solid rgba(255,255,255,.08)}
+
+/* Main */
+.main{margin-left:280px;flex:1;padding:24px;min-height:100vh}
+
+/* KPI Row */
+.kpi-row{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:24px}
+.kpi-card{background:var(--surface);border-radius:var(--radius);padding:18px 16px;box-shadow:var(--shadow);border:1px solid var(--border)}
+.kpi-label{font-size:.72rem;color:var(--t3);font-weight:600;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px}
+.kpi-value{font-size:1.6rem;font-weight:800;letter-spacing:-.5px}
+.kpi-sub{font-size:.7rem;color:var(--t3);margin-top:4px}
+.kpi-value.aging{color:var(--lift-pos)}
+.kpi-value.young{color:var(--accent)}
+
+/* Content Grid */
+.content-grid{display:grid;grid-template-columns:1fr 300px;gap:24px;margin-bottom:24px}
+
+/* Panel */
+.panel{background:var(--surface);border-radius:var(--radius);padding:20px;box-shadow:var(--shadow);border:1px solid var(--border)}
+.panel-title{font-size:.95rem;font-weight:800;margin-bottom:4px}
+.panel-subtitle{font-size:.72rem;color:var(--t3);margin-bottom:16px}
+
+/* Pyramid */
+.pyramid-container{position:relative}
+.pyramid-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px}
+.pyramid-legend{display:flex;gap:16px;font-size:.72rem;color:var(--t3)}
+.pyramid-legend span{display:flex;align-items:center;gap:5px}
+.pyramid-legend .dot{width:10px;height:10px;border-radius:2px}
+.pyramid-chart{display:flex;flex-direction:column;gap:2px}
+.pyramid-row{display:flex;align-items:center;height:20px;gap:0}
+.pyramid-age{width:52px;text-align:center;font-size:.65rem;color:var(--t3);flex-shrink:0;font-weight:600}
+.pyramid-male-wrap{flex:1;display:flex;justify-content:flex-end;position:relative;height:100%}
+.pyramid-female-wrap{flex:1;display:flex;justify-content:flex-start;position:relative;height:100%}
+.pyramid-bar{height:100%;border-radius:1px;transition:width .3s ease;position:relative;z-index:2}
+.pyramid-bar.male{background:var(--male)}
+.pyramid-bar.female{background:var(--female)}
+.pyramid-outline{position:absolute;height:100%;border:1.5px dashed;border-radius:1px;top:0;z-index:1;opacity:.5}
+.pyramid-outline.male{border-color:var(--t3);right:0}
+.pyramid-outline.female{border-color:var(--t3);left:0}
+.pyramid-axis{display:flex;justify-content:space-between;padding:4px 0;margin-top:4px}
+.pyramid-axis-male,.pyramid-axis-female{flex:1;display:flex;font-size:.6rem;color:var(--t4)}
+.pyramid-axis-male{justify-content:flex-end;padding-right:4px}
+.pyramid-axis-female{padding-left:4px}
+.pyramid-axis-male span,.pyramid-axis-female span{padding:0 2px}
+.pyramid-axis-center{width:52px;text-align:center;font-size:.6rem;color:var(--t4)}
+.pyramid-row:hover .pyramid-bar{filter:brightness(1.1)}
+.pyramid-tooltip{position:absolute;background:rgba(0,0,0,.85);color:#fff;padding:6px 10px;border-radius:5px;font-size:.7rem;pointer-events:none;z-index:10;white-space:nowrap;display:none}
+
+/* Lift Panel */
+.lift-chart{display:flex;flex-direction:column;gap:2px}
+.lift-row{display:flex;align-items:center;height:20px;gap:6px}
+.lift-age{width:40px;font-size:.6rem;color:var(--t3);text-align:right;flex-shrink:0}
+.lift-bar-wrap{flex:1;position:relative;height:100%;display:flex;align-items:center}
+.lift-center{position:absolute;left:50%;top:0;bottom:0;width:1px;background:var(--border);z-index:0}
+.lift-bar{height:14px;border-radius:2px;position:absolute;z-index:1;transition:width .3s ease,left .3s ease}
+.lift-bar.positive{background:var(--lift-pos)}
+.lift-bar.negative{background:var(--lift-neg)}
+.lift-val{font-size:.6rem;color:var(--t3);width:44px;text-align:right;flex-shrink:0}
+.lift-summary{margin-top:16px;padding-top:12px;border-top:1px solid var(--border)}
+.lift-summary-row{display:flex;justify-content:space-between;padding:5px 0;font-size:.78rem}
+.lift-summary-row .label{color:var(--t3)}
+.lift-summary-row .value{font-weight:700}
+
+/* Similar Patterns */
+.sim-tabs{display:flex;gap:0;margin:16px 0 12px;border-bottom:2px solid var(--border)}
+.sim-tab{padding:8px 16px;font-size:.78rem;font-weight:600;color:var(--t3);cursor:pointer;border:none;background:none;border-bottom:2px solid transparent;margin-bottom:-2px;transition:all .15s;font-family:inherit;display:flex;align-items:center;gap:6px}
+.sim-tab.active{color:var(--accent);border-bottom-color:var(--accent)}
+.sim-tab .tab-count{font-size:.65rem;background:var(--bg);padding:1px 6px;border-radius:8px}
+.sim-tab.active .tab-count{background:rgba(52,152,219,.12);color:var(--accent)}
+.sim-tab-panel{display:none}
+.sim-tab-panel.active{display:block}
+.sim-item{display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--border);cursor:pointer;transition:background .1s}
+.sim-item:hover{background:var(--bg);margin:0 -12px;padding:8px 12px;border-radius:6px}
+.sim-item:last-child{border-bottom:none}
+.sim-rank{width:24px;height:24px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:.65rem;font-weight:700;flex-shrink:0}
+.sim-rank.gold{background:#FFF3C4;color:#B7791F}
+.sim-rank.silver{background:#E2E8F0;color:#4A5568}
+.sim-rank.bronze{background:#FEEBC8;color:#C05621}
+.sim-rank.normal{background:var(--bg);color:var(--t3)}
+.sim-info{flex:1;min-width:0}
+.sim-name{font-size:.8rem;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sim-parent{font-size:.65rem;color:var(--t4)}
+.sim-score{font-size:.72rem;font-weight:700;color:var(--accent);flex-shrink:0}
+.sim-mini-pyramid{width:40px;height:28px;flex-shrink:0;display:flex;align-items:center;gap:0}
+.sim-mini-male,.sim-mini-female{display:flex;flex-direction:column;gap:0;flex:1}
+.sim-mini-male{align-items:flex-end}
+.sim-mini-female{align-items:flex-start}
+.sim-mini-bar{height:1.2px;border-radius:.5px;min-width:0}
+
+/* Small Multiples */
+.small-multiples{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:12px}
+.sm-card{background:var(--surface);border-radius:8px;padding:12px;border:2px solid var(--border);cursor:pointer;transition:all .15s}
+.sm-card:hover{border-color:var(--accent);transform:translateY(-1px);box-shadow:0 4px 12px rgba(0,0,0,.08)}
+.sm-card-title{font-size:.72rem;font-weight:700;margin-bottom:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sm-card-pop{font-size:.6rem;color:var(--t4);margin-bottom:6px}
+.sm-pyramid{display:flex;flex-direction:column;gap:0;height:60px;justify-content:center}
+.sm-row{display:flex;align-items:center;height:2.5px;gap:0}
+.sm-age-spacer{width:0;flex-shrink:0}
+.sm-male-wrap{flex:1;display:flex;justify-content:flex-end}
+.sm-female-wrap{flex:1;display:flex;justify-content:flex-start}
+.sm-bar{height:100%;border-radius:.5px}
+.sm-bar.male{background:var(--male)}
+.sm-bar.female{background:var(--female)}
+.sm-kpi-row{display:flex;gap:4px;margin-top:6px;font-size:.6rem}
+.sm-kpi{flex:1;text-align:center;padding:3px 0;border-radius:4px;background:var(--bg)}
+.sm-kpi .v{font-weight:700;display:block}
+.sm-kpi .l{color:var(--t4);font-size:.5rem}
+
+/* Loading */
+.loading{display:flex;align-items:center;justify-content:center;height:200px;color:var(--t3);font-size:.85rem}
+.loading::after{content:'';width:20px;height:20px;border:2px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin .6s linear infinite;margin-left:10px}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* Responsive */
+@media(max-width:1200px){
+  .content-grid{grid-template-columns:1fr 260px}
+  .kpi-row{grid-template-columns:repeat(2,1fr)}
+}
+@media(max-width:1024px){
+  .sidebar{width:240px;padding:16px 12px}
+  .main{margin-left:240px;padding:16px}
+}
+@media(max-width:768px){
+  .sidebar{position:fixed;left:-280px;width:280px;transition:left .3s}
+  .sidebar.open{left:0}
+  .main{margin-left:0}
+  .content-grid{grid-template-columns:1fr}
+  .mobile-toggle{display:flex}
+}
+.mobile-toggle{display:none;position:fixed;top:12px;left:12px;z-index:200;width:36px;height:36px;border-radius:8px;background:var(--sidebar);color:#fff;border:none;cursor:pointer;align-items:center;justify-content:center;font-size:1.2rem}
+
+/* Map */
+.map-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px}
+.map-controls{display:flex;gap:8px;align-items:center}
+.map-controls select{padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:.78rem;font-family:inherit;background:var(--surface);cursor:pointer}
+.map-controls select:focus{outline:none;border-color:var(--accent)}
+.map-back-btn{padding:6px 12px;border:1px solid var(--border);border-radius:6px;font-size:.75rem;font-family:inherit;background:var(--bg);cursor:pointer;transition:all .15s}
+.map-back-btn:hover{background:var(--accent);color:#fff;border-color:var(--accent)}
+#map{border-radius:8px;border:1px solid var(--border);z-index:1}
+.map-legend{display:flex;align-items:center;gap:6px;margin-top:10px;font-size:.7rem;color:var(--t3);justify-content:center}
+.map-legend-gradient{width:200px;height:10px;border-radius:3px;border:1px solid var(--border)}
+.map-loading-overlay{position:absolute;top:0;left:0;right:0;bottom:0;background:rgba(255,255,255,.85);display:flex;align-items:center;justify-content:center;z-index:500;border-radius:8px;font-size:.85rem;color:var(--t3)}
+.map-info{position:absolute;bottom:10px;right:10px;background:rgba(255,255,255,.92);padding:8px 12px;border-radius:6px;font-size:.72rem;z-index:400;box-shadow:0 1px 6px rgba(0,0,0,.1);max-width:200px}
+.map-info .region-name{font-weight:700;font-size:.8rem;margin-bottom:2px}
+.map-info .metric-value{font-weight:700;color:var(--accent)}
+</style>
+</head>
+<body>
+
+<button class="mobile-toggle" onclick="document.querySelector('.sidebar').classList.toggle('open')">☰</button>
+
+<aside class="sidebar">
+  <h1 class="logo-font"><span class="icon">📊</span> 인구피라미드</h1>
+
+  <div class="sidebar-section">
+    <h3>지역 선택</h3>
+    <select id="sel-sido"><option value="">시도 선택...</option></select>
+    <select id="sel-sgg"><option value="">시군구 선택...</option></select>
+    <select id="sel-emd"><option value="">읍면동 선택...</option></select>
+  </div>
+
+  <div class="sidebar-section">
+    <h3>대조군 (비교 기준)</h3>
+    <div class="control-presets">
+      <button class="preset-btn active" data-control="nation" onclick="setControl('nation')">전국</button>
+      <button class="preset-btn" data-control="sido" onclick="setControl('sido')">해당 시도</button>
+      <button class="preset-btn" data-control="sgg" onclick="setControl('sgg')">해당 시군구</button>
+    </div>
+    <select id="sel-control" style="margin-top:10px"><option value="00">전국 (전체)</option></select>
+  </div>
+
+  <div class="data-date">
+    <div>데이터: <strong>2025년 12월</strong> 주민등록인구</div>
+    <div style="margin-top:4px">출처: 통계청 KOSIS</div>
+  </div>
+</aside>
+
+<main class="main">
+  <div id="kpi-row" class="kpi-row">
+    <div class="kpi-card"><div class="kpi-label">총인구</div><div class="kpi-value mono" id="kpi-pop">-</div><div class="kpi-sub" id="kpi-pop-sub"></div></div>
+    <div class="kpi-card"><div class="kpi-label">고령화지수</div><div class="kpi-value mono aging" id="kpi-aging">-</div><div class="kpi-sub">65세 이상 / 0-14세 × 100</div></div>
+    <div class="kpi-card"><div class="kpi-label">유소년 비율</div><div class="kpi-value mono young" id="kpi-young">-</div><div class="kpi-sub">0-14세 인구 비율</div></div>
+    <div class="kpi-card"><div class="kpi-label">생산가능인구</div><div class="kpi-value mono" id="kpi-working">-</div><div class="kpi-sub">15-64세 인구 비율</div></div>
+  </div>
+
+  <div class="panel" style="margin-bottom:24px;position:relative">
+    <div class="map-header">
+      <div>
+        <div class="panel-title" id="map-title">전국 지도</div>
+        <div class="panel-subtitle" id="map-subtitle">시도 단위 | 클릭하여 드릴다운</div>
+      </div>
+      <div class="map-controls">
+        <select id="map-metric" onchange="changeMapMetric(this.value)">
+          <option value="aging">고령화지수</option>
+          <option value="young">유소년비율</option>
+          <option value="working">생산가능인구</option>
+          <option value="pop">총인구</option>
+        </select>
+        <button id="map-back" class="map-back-btn" style="display:none" onclick="mapDrillUp()">← 상위로</button>
+      </div>
+    </div>
+    <div id="map" style="height:450px"></div>
+    <div id="map-legend" class="map-legend"></div>
+    <div id="map-info" class="map-info" style="display:none"></div>
+  </div>
+
+  <div class="content-grid">
+    <div class="panel">
+      <div class="pyramid-header">
+        <div>
+          <div class="panel-title" id="pyramid-title">인구 피라미드</div>
+          <div class="panel-subtitle" id="pyramid-subtitle">지역을 선택하세요</div>
+        </div>
+        <div class="pyramid-legend">
+          <span><span class="dot" style="background:var(--male)"></span>남자</span>
+          <span><span class="dot" style="background:var(--female)"></span>여자</span>
+          <span><span class="dot" style="border:1.5px dashed var(--t3);background:none"></span>대조군</span>
+        </div>
+      </div>
+      <div id="pyramid-chart" class="pyramid-chart"></div>
+      <div id="pyramid-axis" class="pyramid-axis"></div>
+      <div id="pyramid-tooltip" class="pyramid-tooltip"></div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-title">Lift 분석</div>
+      <div class="panel-subtitle" id="lift-subtitle">선택지역 vs 대조군</div>
+      <div id="lift-chart" class="lift-chart"></div>
+      <div id="lift-summary" class="lift-summary"></div>
+    </div>
+  </div>
+
+  <div class="panel" style="margin-bottom:24px">
+    <div class="panel-title">유사한 인구구조 지역</div>
+    <div class="panel-subtitle">코사인 유사도 기반 TOP 10</div>
+    <div class="sim-tabs">
+      <button class="sim-tab active" onclick="switchSimTab(this,'sim-sido')">시도 <span class="tab-count">-</span></button>
+      <button class="sim-tab" onclick="switchSimTab(this,'sim-sgg')">시군구 <span class="tab-count">-</span></button>
+      <button class="sim-tab" onclick="switchSimTab(this,'sim-emd')">읍면동 <span class="tab-count">-</span></button>
+    </div>
+    <div id="sim-sido" class="sim-tab-panel active"><div class="loading">계산 중</div></div>
+    <div id="sim-sgg" class="sim-tab-panel"><div class="loading">계산 중</div></div>
+    <div id="sim-emd" class="sim-tab-panel"><div class="loading">계산 중</div></div>
+  </div>
+
+  <div class="panel">
+    <div class="panel-title" id="sm-title">하위 행정구역</div>
+    <div class="panel-subtitle" id="sm-subtitle">클릭하여 해당 지역으로 이동</div>
+    <div id="small-multiples" class="small-multiples"><div class="loading">데이터 로딩 중</div></div>
+  </div>
+</main>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+// ===== STATE =====
+const S = {
+  data: null,
+  regionTree: null,
+  selected: null,    // current region code
+  control: '00',     // control group code
+  controlMode: 'nation'
+};
+
+// ===== DATA LOADING =====
+async function loadData() {
+  const resp = await fetch('data/pop_202512.json');
+  S.data = await resp.json();
+  buildRegionTree();
+}
+
+function buildRegionTree() {
+  const tree = { sido: {}, sgg: {}, emd: {} };
+  const r = S.data.regions;
+
+  for (const [code, info] of Object.entries(r)) {
+    if (code === '00') continue;
+    const len = code.length;
+    if (len === 2) {
+      tree.sido[code] = { name: info.name.trim(), children: [] };
+    } else if (len === 5) {
+      tree.sgg[code] = { name: info.name.trim(), parent: code.slice(0, 2), children: [] };
+    } else if (len === 10) {
+      tree.emd[code] = { name: info.name.trim(), parent: code.slice(0, 5) };
+    }
+  }
+
+  for (const [code, info] of Object.entries(tree.sgg)) {
+    if (tree.sido[info.parent]) tree.sido[info.parent].children.push(code);
+  }
+  for (const [code, info] of Object.entries(tree.emd)) {
+    if (tree.sgg[info.parent]) tree.sgg[info.parent].children.push(code);
+  }
+
+  S.regionTree = tree;
+}
+
+// ===== REGION SELECTORS =====
+function populateSido() {
+  const sel = document.getElementById('sel-sido');
+  sel.innerHTML = '<option value="">시도 선택...</option>';
+  const codes = Object.keys(S.regionTree.sido).sort();
+  for (const c of codes) {
+    const opt = document.createElement('option');
+    opt.value = c;
+    opt.textContent = S.regionTree.sido[c].name;
+    sel.appendChild(opt);
+  }
+}
+
+function populateSgg(sidoCode) {
+  const sel = document.getElementById('sel-sgg');
+  sel.innerHTML = '<option value="">시군구 선택...</option>';
+  if (!sidoCode) return;
+  const children = S.regionTree.sido[sidoCode]?.children || [];
+  for (const c of children.sort()) {
+    const opt = document.createElement('option');
+    opt.value = c;
+    opt.textContent = S.regionTree.sgg[c].name;
+    sel.appendChild(opt);
+  }
+}
+
+function populateEmd(sggCode) {
+  const sel = document.getElementById('sel-emd');
+  sel.innerHTML = '<option value="">읍면동 선택...</option>';
+  if (!sggCode) return;
+  const children = S.regionTree.sgg[sggCode]?.children || [];
+  for (const c of children.sort()) {
+    const opt = document.createElement('option');
+    opt.value = c;
+    opt.textContent = S.regionTree.emd[c].name;
+    sel.appendChild(opt);
+  }
+}
+
+function selectRegion(code) {
+  S.selected = code;
+  updateControlGroup();
+  renderAll();
+}
+
+function updateControlGroup() {
+  if (!S.selected) return;
+  const mode = S.controlMode;
+  if (mode === 'nation') {
+    S.control = '00';
+  } else if (mode === 'sido') {
+    S.control = S.selected.slice(0, 2);
+  } else if (mode === 'sgg') {
+    const sggCode = S.selected.length >= 5 ? S.selected.slice(0, 5) : null;
+    S.control = sggCode && S.data.regions[sggCode] ? sggCode : '00';
+  }
+  document.getElementById('sel-control').value = S.control;
+}
+
+function setControl(mode) {
+  S.controlMode = mode;
+  document.querySelectorAll('.preset-btn').forEach(b => b.classList.toggle('active', b.dataset.control === mode));
+  updateControlGroup();
+  renderAll();
+}
+
+// ===== CALCULATIONS =====
+function getPercents(code) {
+  const r = S.data.regions[code];
+  if (!r) return null;
+  const totalM = r.m.reduce((a, b) => a + b, 0);
+  const totalF = r.f.reduce((a, b) => a + b, 0);
+  const total = totalM + totalF;
+  if (total === 0) return null;
+  return {
+    m: r.m.map(v => v / total * 100),
+    f: r.f.map(v => v / total * 100),
+    totalM, totalF, total
+  };
+}
+
+function calcKPI(code) {
+  const r = S.data.regions[code];
+  if (!r) return {};
+  const m = r.m, f = r.f;
+  const young = (m[0]+f[0]) + (m[1]+f[1]) + (m[2]+f[2]); // 0-14
+  const elderly = (m[13]+f[13])+(m[14]+f[14])+(m[15]+f[15])+(m[16]+f[16])+(m[17]+f[17])+(m[18]+f[18])+(m[19]+f[19])+(m[20]+f[20]); // 65+
+  const total = m.reduce((a,b)=>a+b,0) + f.reduce((a,b)=>a+b,0);
+  const working = total - young - elderly; // 15-64
+
+  return {
+    total,
+    agingIndex: young > 0 ? (elderly / young * 100).toFixed(1) : '∞',
+    youngRatio: total > 0 ? (young / total * 100).toFixed(1) : '0',
+    workingRatio: total > 0 ? (working / total * 100).toFixed(1) : '0',
+    elderlyRatio: total > 0 ? (elderly / total * 100).toFixed(1) : '0'
+  };
+}
+
+function calcLift(selCode, ctrlCode) {
+  const sp = getPercents(selCode);
+  const cp = getPercents(ctrlCode);
+  if (!sp || !cp) return [];
+  const bands = S.data.meta.bands;
+  return bands.map((band, i) => {
+    const selPct = sp.m[i] + sp.f[i];
+    const ctrlPct = cp.m[i] + cp.f[i];
+    const lift = ctrlPct > 0 ? ((selPct / ctrlPct) - 1) * 100 : 0;
+    return { band, lift, selPct, ctrlPct };
+  });
+}
+
+function cosineSimilarity(code1, code2) {
+  const r1 = S.data.regions[code1];
+  const r2 = S.data.regions[code2];
+  if (!r1 || !r2) return 0;
+  const t1 = r1.m.reduce((a,b)=>a+b,0) + r1.f.reduce((a,b)=>a+b,0);
+  const t2 = r2.m.reduce((a,b)=>a+b,0) + r2.f.reduce((a,b)=>a+b,0);
+  if (t1 === 0 || t2 === 0) return 0;
+
+  let dot = 0, mag1 = 0, mag2 = 0;
+  for (let i = 0; i < 21; i++) {
+    const a = r1.m[i]/t1, b = r2.m[i]/t2;
+    const c = r1.f[i]/t1, d = r2.f[i]/t2;
+    dot += a*b + c*d;
+    mag1 += a*a + c*c;
+    mag2 += b*b + d*d;
+  }
+  return dot / (Math.sqrt(mag1) * Math.sqrt(mag2));
+}
+
+function findSimilar(code, level, topN = 10) {
+  const candidates = {};
+  if (level === 'sido') candidates.pool = S.regionTree.sido;
+  else if (level === 'sgg') candidates.pool = S.regionTree.sgg;
+  else candidates.pool = S.regionTree.emd;
+
+  const results = [];
+  for (const c of Object.keys(candidates.pool)) {
+    if (c === code) continue;
+    const sim = cosineSimilarity(code, c);
+    results.push({ code: c, similarity: sim });
+  }
+  results.sort((a, b) => b.similarity - a.similarity);
+  return results.slice(0, topN);
+}
+
+// ===== RENDERING =====
+function renderAll() {
+  if (!S.selected || !S.data) return;
+  renderKPI();
+  renderPyramid();
+  renderLift();
+  renderSimilar();
+  renderSmallMultiples();
+  if (mapLayer) mapLayer.setStyle(f => {
+    const code = getCodeFromFeature(f, mapLevel);
+    const v = getMetricValue(code);
+    const scale = getColorScale(mapLayer.getLayers().map(l => getMetricValue(getCodeFromFeature(l.feature, mapLevel))));
+    const isSelected = code === S.selected || S.selected?.startsWith(code);
+    return { fillColor: scale.getColor(v), fillOpacity: 0.75, color: isSelected ? '#1A202C' : '#fff', weight: isSelected ? 2.5 : 1 };
+  });
+}
+
+function renderKPI() {
+  const kpi = calcKPI(S.selected);
+  document.getElementById('kpi-pop').textContent = kpi.total ? kpi.total.toLocaleString() + '명' : '-';
+  document.getElementById('kpi-pop-sub').textContent = getRegionFullName(S.selected);
+  document.getElementById('kpi-aging').textContent = kpi.agingIndex;
+  document.getElementById('kpi-young').textContent = kpi.youngRatio + '%';
+  document.getElementById('kpi-working').textContent = kpi.workingRatio + '%';
+}
+
+function renderPyramid() {
+  const chart = document.getElementById('pyramid-chart');
+  const sp = getPercents(S.selected);
+  const cp = getPercents(S.control);
+  if (!sp) { chart.innerHTML = '<div class="loading">데이터 없음</div>'; return; }
+
+  const selName = getRegionName(S.selected);
+  const ctrlName = getRegionName(S.control);
+  document.getElementById('pyramid-title').textContent = selName + ' 인구 피라미드';
+  document.getElementById('pyramid-subtitle').textContent = '대조군: ' + ctrlName + ' | 총인구: ' + sp.total.toLocaleString() + '명';
+
+  const bands = S.data.meta.bands;
+  const maxPct = Math.max(...sp.m, ...sp.f, ...(cp ? cp.m : [0]), ...(cp ? cp.f : [0]));
+  const scale = maxPct > 0 ? 100 / maxPct : 1;
+
+  let html = '';
+  for (let i = bands.length - 1; i >= 0; i--) {
+    const mw = sp.m[i] * scale;
+    const fw = sp.f[i] * scale;
+    const cmw = cp ? cp.m[i] * scale : 0;
+    const cfw = cp ? cp.f[i] * scale : 0;
+    const mCount = S.data.regions[S.selected].m[i];
+    const fCount = S.data.regions[S.selected].f[i];
+
+    html += `<div class="pyramid-row" data-idx="${i}"
+      onmouseenter="showTip(event,${i})" onmouseleave="hideTip()">
+      <div class="pyramid-male-wrap">
+        ${cp ? `<div class="pyramid-outline male" style="width:${cmw}%"></div>` : ''}
+        <div class="pyramid-bar male" style="width:${mw}%"></div>
+      </div>
+      <div class="pyramid-age">${bands[i]}</div>
+      <div class="pyramid-female-wrap">
+        ${cp ? `<div class="pyramid-outline female" style="width:${cfw}%"></div>` : ''}
+        <div class="pyramid-bar female" style="width:${fw}%"></div>
+      </div>
+    </div>`;
+  }
+  chart.innerHTML = html;
+
+  // Axis
+  const axisMax = Math.ceil(maxPct * 10) / 10;
+  const ticks = [axisMax, axisMax/2, 0, axisMax/2, axisMax];
+  document.getElementById('pyramid-axis').innerHTML = `
+    <div class="pyramid-axis-male">${ticks[0].toFixed(1)}%</div>
+    <div class="pyramid-axis-center">(%)</div>
+    <div class="pyramid-axis-female">${ticks[4].toFixed(1)}%</div>`;
+}
+
+function showTip(e, idx) {
+  const tip = document.getElementById('pyramid-tooltip');
+  const r = S.data.regions[S.selected];
+  const band = S.data.meta.bands[idx];
+  const m = r.m[idx].toLocaleString();
+  const f = r.f[idx].toLocaleString();
+  tip.innerHTML = `<strong>${band}세</strong><br>남: ${m}명 | 여: ${f}명`;
+  tip.style.display = 'block';
+  tip.style.left = e.pageX + 12 + 'px';
+  tip.style.top = e.pageY - 30 + 'px';
+}
+function hideTip() { document.getElementById('pyramid-tooltip').style.display = 'none'; }
+
+function renderLift() {
+  const chart = document.getElementById('lift-chart');
+  const summary = document.getElementById('lift-summary');
+  const lifts = calcLift(S.selected, S.control);
+  if (!lifts.length) { chart.innerHTML = ''; return; }
+
+  document.getElementById('lift-subtitle').textContent =
+    getRegionName(S.selected) + ' vs ' + getRegionName(S.control);
+
+  const maxLift = Math.max(...lifts.map(l => Math.abs(l.lift)), 1);
+  const bands = S.data.meta.bands;
+
+  let html = '';
+  for (let i = bands.length - 1; i >= 0; i--) {
+    const l = lifts[i];
+    const pct = Math.abs(l.lift) / maxLift * 50;
+    const cls = l.lift >= 0 ? 'positive' : 'negative';
+    const left = l.lift >= 0 ? '50%' : (50 - pct) + '%';
+    html += `<div class="lift-row">
+      <div class="lift-age">${bands[i]}</div>
+      <div class="lift-bar-wrap">
+        <div class="lift-center"></div>
+        <div class="lift-bar ${cls}" style="width:${pct}%;left:${left}"></div>
+      </div>
+      <div class="lift-val mono">${l.lift >= 0 ? '+' : ''}${l.lift.toFixed(1)}%</div>
+    </div>`;
+  }
+  chart.innerHTML = html;
+
+  // Top 3 positive and negative
+  const sorted = [...lifts].sort((a, b) => b.lift - a.lift);
+  const top3pos = sorted.slice(0, 3);
+  const top3neg = sorted.slice(-3).reverse();
+
+  const kpi = calcKPI(S.selected);
+  summary.innerHTML = `
+    <div class="lift-summary-row"><span class="label">고령화지수</span><span class="value" style="color:var(--lift-pos)">${kpi.agingIndex}</span></div>
+    <div class="lift-summary-row"><span class="label">유소년 비율</span><span class="value" style="color:var(--accent)">${kpi.youngRatio}%</span></div>
+    <div class="lift-summary-row"><span class="label">생산가능인구</span><span class="value">${kpi.workingRatio}%</span></div>
+    <div style="margin-top:10px;font-size:.7rem;color:var(--t3)">
+      <div style="font-weight:700;margin-bottom:4px;color:var(--lift-pos)">▲ 과대대표 TOP 3</div>
+      ${top3pos.map(l => `<div>${l.band}세: +${l.lift.toFixed(1)}%</div>`).join('')}
+      <div style="font-weight:700;margin:8px 0 4px;color:var(--lift-neg)">▼ 과소대표 TOP 3</div>
+      ${top3neg.map(l => `<div>${l.band}세: ${l.lift.toFixed(1)}%</div>`).join('')}
+    </div>`;
+}
+
+function renderSimilar() {
+  const levels = [
+    { id: 'sim-sido', level: 'sido', label: '시도' },
+    { id: 'sim-sgg', level: 'sgg', label: '시군구' },
+    { id: 'sim-emd', level: 'emd', label: '읍면동' }
+  ];
+
+  for (const { id, level } of levels) {
+    const panel = document.getElementById(id);
+    const similar = findSimilar(S.selected, level);
+    const tab = document.querySelector(`.sim-tab[onclick*="${id}"] .tab-count`);
+    if (tab) tab.textContent = similar.length;
+
+    if (!similar.length) {
+      panel.innerHTML = '<div style="padding:20px;color:var(--t3);text-align:center">비교 대상 없음</div>';
+      continue;
+    }
+
+    panel.innerHTML = similar.map((item, idx) => {
+      const r = S.data.regions[item.code];
+      const name = r.name.trim();
+      const parent = getParentName(item.code);
+      const rankCls = idx === 0 ? 'gold' : idx === 1 ? 'silver' : idx === 2 ? 'bronze' : 'normal';
+      const miniPyramid = renderMiniPyramid(item.code);
+      return `<div class="sim-item" onclick="navigateToRegion('${item.code}')">
+        <div class="sim-rank ${rankCls}">${idx + 1}</div>
+        <div class="sim-info">
+          <div class="sim-name">${name}</div>
+          <div class="sim-parent">${parent}</div>
+        </div>
+        ${miniPyramid}
+        <div class="sim-score">${(item.similarity * 100).toFixed(1)}%</div>
+      </div>`;
+    }).join('');
+  }
+}
+
+function renderMiniPyramid(code) {
+  const p = getPercents(code);
+  if (!p) return '';
+  const max = Math.max(...p.m, ...p.f);
+  if (max === 0) return '';
+  let maleHtml = '', femaleHtml = '';
+  for (let i = 20; i >= 0; i--) {
+    const mw = p.m[i] / max * 18;
+    const fw = p.f[i] / max * 18;
+    maleHtml += `<div class="sim-mini-bar" style="width:${mw}px;background:var(--male)"></div>`;
+    femaleHtml += `<div class="sim-mini-bar" style="width:${fw}px;background:var(--female)"></div>`;
+  }
+  return `<div class="sim-mini-pyramid"><div class="sim-mini-male">${maleHtml}</div><div class="sim-mini-female">${femaleHtml}</div></div>`;
+}
+
+function renderSmallMultiples() {
+  const container = document.getElementById('small-multiples');
+  let children = [];
+  let title = '';
+
+  if (!S.selected) { container.innerHTML = ''; return; }
+
+  const len = S.selected.length;
+  if (len === 2) {
+    children = S.regionTree.sido[S.selected]?.children || [];
+    title = getRegionName(S.selected) + ' 시군구';
+  } else if (len === 5) {
+    children = S.regionTree.sgg[S.selected]?.children || [];
+    title = getRegionName(S.selected) + ' 읍면동';
+  } else if (len === 10) {
+    const parentSgg = S.selected.slice(0, 5);
+    children = S.regionTree.sgg[parentSgg]?.children || [];
+    title = getRegionName(parentSgg) + ' 읍면동';
+  }
+
+  document.getElementById('sm-title').textContent = title || '하위 행정구역';
+  document.getElementById('sm-subtitle').textContent = `${children.length}개 지역 | 클릭하여 이동`;
+
+  if (!children.length) {
+    container.innerHTML = '<div style="padding:20px;color:var(--t3);text-align:center">하위 행정구역 없음</div>';
+    return;
+  }
+
+  container.innerHTML = children.sort().map(code => {
+    const r = S.data.regions[code];
+    if (!r) return '';
+    const name = r.name.trim();
+    const kpi = calcKPI(code);
+    const p = getPercents(code);
+    let pyramidHtml = '';
+    if (p) {
+      const max = Math.max(...p.m, ...p.f);
+      for (let i = 20; i >= 0; i--) {
+        const mw = max > 0 ? p.m[i] / max * 100 : 0;
+        const fw = max > 0 ? p.f[i] / max * 100 : 0;
+        pyramidHtml += `<div class="sm-row">
+          <div class="sm-male-wrap"><div class="sm-bar male" style="width:${mw}%"></div></div>
+          <div class="sm-female-wrap"><div class="sm-bar female" style="width:${fw}%"></div></div>
+        </div>`;
+      }
+    }
+
+    const agingColor = parseFloat(kpi.agingIndex) > 200 ? 'var(--lift-pos)' :
+                       parseFloat(kpi.agingIndex) > 100 ? 'var(--t2)' : 'var(--accent)';
+    const borderColor = parseFloat(kpi.agingIndex) > 200 ? '#E74C3C44' :
+                        parseFloat(kpi.agingIndex) < 50 ? '#2E86AB44' : 'var(--border)';
+
+    return `<div class="sm-card" style="border-color:${borderColor}" onclick="navigateToRegion('${code}')">
+      <div class="sm-card-title">${name}</div>
+      <div class="sm-card-pop">${kpi.total ? kpi.total.toLocaleString() + '명' : ''}</div>
+      <div class="sm-pyramid">${pyramidHtml}</div>
+      <div class="sm-kpi-row">
+        <div class="sm-kpi"><span class="v" style="color:${agingColor}">${kpi.agingIndex}</span><span class="l">고령화</span></div>
+        <div class="sm-kpi"><span class="v">${kpi.youngRatio}%</span><span class="l">유소년</span></div>
+        <div class="sm-kpi"><span class="v">${kpi.workingRatio}%</span><span class="l">생산</span></div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// ===== NAVIGATION =====
+function navigateToRegion(code) {
+  const len = code.length;
+  if (len === 2) {
+    document.getElementById('sel-sido').value = code;
+    populateSgg(code);
+    document.getElementById('sel-sgg').value = '';
+    document.getElementById('sel-emd').innerHTML = '<option value="">읍면동 선택...</option>';
+  } else if (len === 5) {
+    const sidoCode = code.slice(0, 2);
+    document.getElementById('sel-sido').value = sidoCode;
+    populateSgg(sidoCode);
+    document.getElementById('sel-sgg').value = code;
+    populateEmd(code);
+    document.getElementById('sel-emd').value = '';
+  } else if (len === 10) {
+    const sidoCode = code.slice(0, 2);
+    const sggCode = code.slice(0, 5);
+    document.getElementById('sel-sido').value = sidoCode;
+    populateSgg(sidoCode);
+    document.getElementById('sel-sgg').value = sggCode;
+    populateEmd(sggCode);
+    document.getElementById('sel-emd').value = code;
+  }
+  selectRegion(code);
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+// ===== HELPERS =====
+function getRegionName(code) {
+  if (!code || !S.data?.regions[code]) return '';
+  return S.data.regions[code].name.trim();
+}
+
+function getRegionFullName(code) {
+  if (!code) return '';
+  const parts = [];
+  if (code.length >= 2) parts.push(getRegionName(code.slice(0, 2)));
+  if (code.length >= 5) parts.push(getRegionName(code.slice(0, 5)));
+  if (code.length === 10) parts.push(getRegionName(code));
+  return parts.join(' > ');
+}
+
+function getParentName(code) {
+  if (code.length === 2) return '';
+  if (code.length === 5) return getRegionName(code.slice(0, 2));
+  if (code.length === 10) {
+    return getRegionName(code.slice(0, 2)) + ' ' + getRegionName(code.slice(0, 5));
+  }
+  return '';
+}
+
+function switchSimTab(btn, panelId) {
+  document.querySelectorAll('.sim-tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.sim-tab-panel').forEach(p => p.classList.remove('active'));
+  btn.classList.add('active');
+  document.getElementById(panelId).classList.add('active');
+}
+
+// ===== EVENT LISTENERS =====
+document.getElementById('sel-sido').addEventListener('change', function() {
+  const code = this.value;
+  populateSgg(code);
+  document.getElementById('sel-emd').innerHTML = '<option value="">읍면동 선택...</option>';
+  if (code) selectRegion(code);
+});
+
+document.getElementById('sel-sgg').addEventListener('change', function() {
+  const code = this.value;
+  populateEmd(code);
+  if (code) selectRegion(code);
+});
+
+document.getElementById('sel-emd').addEventListener('change', function() {
+  const code = this.value;
+  if (code) selectRegion(code);
+});
+
+// ===== MAP =====
+let map = null;
+let mapLayer = null;
+let adk = null;
+let adkVersion = null;
+let mapLevel = 'sido';  // 'sido', 'sgg', 'emd'
+let mapParent = null;    // parent code for drill-down
+let mapMetric = 'aging';
+let mapGeoCache = {};
+
+async function initMap() {
+  map = L.map('map', { zoomSnap: 0.5, zoomDelta: 0.5 }).setView([36.5, 127.8], 7);
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/light_nolabels/{z}/{x}/{y}{r}.png', {
+    maxZoom: 18, attribution: '&copy; OSM &copy; CARTO'
+  }).addTo(map);
+
+  try {
+    adk = await import('https://esm.sh/admdongkor');
+    const vers = adk.versions(2025);
+    adkVersion = vers[vers.length - 1] || '20250401';
+    await renderMap();
+  } catch (e) {
+    console.error('admdongkor load failed:', e);
+    document.getElementById('map-subtitle').textContent = '지도 데이터 로드 실패';
+  }
+}
+
+function getMetricValue(code) {
+  const kpi = calcKPI(code);
+  if (!kpi.total) return null;
+  switch (mapMetric) {
+    case 'aging': return parseFloat(kpi.agingIndex) || 0;
+    case 'young': return parseFloat(kpi.youngRatio) || 0;
+    case 'working': return parseFloat(kpi.workingRatio) || 0;
+    case 'pop': return kpi.total;
+    default: return 0;
+  }
+}
+
+function getMetricLabel() {
+  return { aging: '고령화지수', young: '유소년비율(%)', working: '생산가능인구(%)', pop: '총인구(명)' }[mapMetric];
+}
+
+function getColorScale(values) {
+  const sorted = values.filter(v => v !== null).sort((a, b) => a - b);
+  if (!sorted.length) return { min: 0, max: 100, getColor: () => '#ccc' };
+  const min = sorted[Math.floor(sorted.length * 0.05)];
+  const max = sorted[Math.floor(sorted.length * 0.95)];
+
+  const palettes = {
+    aging: ['#2E86AB', '#5BA4C9', '#93C5E0', '#FDE8D0', '#F4A582', '#E74C3C'],
+    young: ['#E74C3C', '#F4A582', '#FDE8D0', '#93C5E0', '#5BA4C9', '#2E86AB'],
+    working: ['#E74C3C', '#F4A582', '#FDE8D0', '#B8D4E3', '#7FB3D3', '#2E86AB'],
+    pop: ['#EFF3FF', '#C6DBEF', '#9ECAE1', '#6BAED6', '#3182BD', '#08519C']
+  };
+  const pal = palettes[mapMetric] || palettes.aging;
+
+  return {
+    min, max, pal,
+    getColor(v) {
+      if (v === null) return '#ddd';
+      const t = Math.max(0, Math.min(1, (v - min) / (max - min || 1)));
+      const idx = Math.min(Math.floor(t * pal.length), pal.length - 1);
+      return pal[idx];
+    }
+  };
+}
+
+function getCodeFromFeature(f, level) {
+  const p = f.properties;
+  if (level === 'sido') return p.sidocd;
+  if (level === 'sgg') return p.sggcd;
+  return p.emdcd;
+}
+
+async function renderMap() {
+  if (!adk || !map) return;
+
+  const cacheKey = `${adkVersion}_${mapLevel}`;
+  let fc;
+  if (mapGeoCache[cacheKey]) {
+    fc = mapGeoCache[cacheKey];
+  } else {
+    fc = await adk.get(adkVersion, mapLevel);
+    mapGeoCache[cacheKey] = fc;
+  }
+
+  // Filter features for drill-down
+  let features = fc.features;
+  if (mapLevel === 'sgg' && mapParent) {
+    features = features.filter(f => f.properties.sidocd === mapParent);
+  } else if (mapLevel === 'emd' && mapParent) {
+    features = features.filter(f => f.properties.sggcd === mapParent);
+  }
+
+  const filteredFc = { type: 'FeatureCollection', features };
+
+  // Compute metric values
+  const values = features.map(f => {
+    const code = getCodeFromFeature(f, mapLevel);
+    return getMetricValue(code);
+  });
+  const scale = getColorScale(values);
+
+  // Remove old layer
+  if (mapLayer) map.removeLayer(mapLayer);
+
+  mapLayer = L.geoJSON(filteredFc, {
+    style(f) {
+      const code = getCodeFromFeature(f, mapLevel);
+      const v = getMetricValue(code);
+      const isSelected = code === S.selected || S.selected?.startsWith(code);
+      return {
+        fillColor: scale.getColor(v),
+        fillOpacity: 0.75,
+        color: isSelected ? '#1A202C' : '#fff',
+        weight: isSelected ? 2.5 : 1,
+        opacity: 1
+      };
+    },
+    onEachFeature(f, layer) {
+      const code = getCodeFromFeature(f, mapLevel);
+      const name = f.properties.sidonm || f.properties.sggnm || f.properties.emdnm || '';
+      const v = getMetricValue(code);
+      const label = getMetricLabel();
+
+      layer.on('mouseover', function(e) {
+        this.setStyle({ weight: 3, color: '#1A202C' });
+        this.bringToFront();
+        const info = document.getElementById('map-info');
+        info.style.display = 'block';
+        info.innerHTML = `<div class="region-name">${name}</div>
+          <div>${label}: <span class="metric-value">${v !== null ? (mapMetric === 'pop' ? v.toLocaleString() : v.toFixed(1)) : '-'}</span></div>`;
+      });
+      layer.on('mouseout', function() {
+        mapLayer.resetStyle(this);
+        document.getElementById('map-info').style.display = 'none';
+      });
+      layer.on('click', function() {
+        // Select region
+        navigateToRegion(code);
+        // Drill down if possible
+        if (mapLevel === 'sido') {
+          mapLevel = 'sgg';
+          mapParent = code;
+          renderMap();
+        } else if (mapLevel === 'sgg') {
+          const hasChildren = S.regionTree.sgg[code]?.children?.length > 0;
+          if (hasChildren) {
+            mapLevel = 'emd';
+            mapParent = code;
+            renderMap();
+          }
+        }
+      });
+    }
+  }).addTo(map);
+
+  // Fit bounds
+  try { map.fitBounds(mapLayer.getBounds(), { padding: [20, 20] }); } catch(e) {}
+
+  // Update UI
+  const levelNames = { sido: '시도', sgg: '시군구', emd: '읍면동' };
+  const parentName = mapParent ? getRegionName(mapParent) : '';
+  document.getElementById('map-title').textContent = parentName ? parentName + ' ' + levelNames[mapLevel] : '전국 ' + levelNames[mapLevel];
+  document.getElementById('map-subtitle').textContent = `${levelNames[mapLevel]} 단위 | ${getMetricLabel()} | ${features.length}개 지역`;
+  document.getElementById('map-back').style.display = mapLevel === 'sido' ? 'none' : 'inline-block';
+
+  // Legend
+  const legend = document.getElementById('map-legend');
+  const gradientCss = `linear-gradient(to right, ${scale.pal.join(', ')})`;
+  const minLabel = mapMetric === 'pop' ? scale.min.toLocaleString() : scale.min.toFixed(0);
+  const maxLabel = mapMetric === 'pop' ? scale.max.toLocaleString() : scale.max.toFixed(0);
+  legend.innerHTML = `<span>${minLabel}</span>
+    <div class="map-legend-gradient" style="background:${gradientCss}"></div>
+    <span>${maxLabel}</span>
+    <span style="margin-left:8px">${getMetricLabel()}</span>`;
+}
+
+function changeMapMetric(val) {
+  mapMetric = val;
+  renderMap();
+}
+
+function mapDrillUp() {
+  if (mapLevel === 'emd') {
+    mapLevel = 'sgg';
+    mapParent = mapParent ? mapParent.slice(0, 2) : null;
+  } else if (mapLevel === 'sgg') {
+    mapLevel = 'sido';
+    mapParent = null;
+  }
+  renderMap();
+}
+
+// ===== INIT =====
+async function init() {
+  await loadData();
+  populateSido();
+
+  const defaultSido = '11';
+  document.getElementById('sel-sido').value = defaultSido;
+  populateSgg(defaultSido);
+  selectRegion(defaultSido);
+
+  initMap();
+}
+
+init();
+</script>
+</body>
+</html>

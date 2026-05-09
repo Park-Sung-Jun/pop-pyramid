@@ -195,10 +195,15 @@ body{font-family:'Gothic A1',sans-serif;background:var(--bg);color:var(--t1);min
 .btn-search:active{transform:scale(.98)}
 
 /* Rankings */
-.rank-controls{display:flex;gap:8px;margin:12px 0;flex-wrap:wrap}
+.rank-controls{display:flex;gap:8px;margin:0 0 14px;flex-wrap:wrap}
 .rank-metric-btn{padding:6px 14px;font-size:.75rem;font-weight:600;border:1px solid var(--border);border-radius:16px;background:var(--surface);color:var(--t3);cursor:pointer;font-family:inherit;transition:all .15s}
 .rank-metric-btn.active{background:var(--accent);color:#fff;border-color:var(--accent)}
-.rank-level-select{padding:5px 8px;border:1px solid var(--border);border-radius:6px;font-size:.75rem;font-family:inherit;background:var(--surface)}
+.rank-dual-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.rank-card{display:flex;flex-direction:column;gap:10px}
+.rank-card-header{display:flex;justify-content:space-between;align-items:center}
+.rank-order-toggle{display:flex;border:1px solid var(--border);border-radius:6px;overflow:hidden}
+.rank-order-btn{padding:4px 12px;font-size:.72rem;font-weight:600;border:none;background:var(--surface);color:var(--t3);cursor:pointer;font-family:inherit;transition:all .15s}
+.rank-order-btn.active{background:var(--accent);color:#fff}
 .rank-table{width:100%;border-collapse:collapse;font-size:.78rem}
 .rank-table th{text-align:left;padding:8px 6px;border-bottom:2px solid var(--border);font-size:.7rem;color:var(--t3);font-weight:600;text-transform:uppercase;letter-spacing:.5px;position:sticky;top:0;background:var(--surface)}
 .rank-table td{padding:7px 6px;border-bottom:1px solid var(--border)}
@@ -208,11 +213,12 @@ body{font-family:'Gothic A1',sans-serif;background:var(--bg);color:var(--t1);min
 .rank-table .rank-name{font-weight:600}
 .rank-table .rank-parent{font-size:.65rem;color:var(--t4)}
 .rank-table .rank-val{text-align:right;font-weight:700;font-family:'IBM Plex Mono',monospace}
-.rank-table .rank-bar-cell{width:100px}
+.rank-table .rank-bar-cell{width:80px}
 .rank-bar{height:8px;border-radius:4px;background:var(--accent)}
-.rank-scroll{max-height:400px;overflow-y:auto}
+.rank-scroll{max-height:420px;overflow-y:auto}
 .rank-scroll::-webkit-scrollbar{width:4px}
 .rank-scroll::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px}
+@media(max-width:900px){.rank-dual-grid{grid-template-columns:1fr}}
 </style>
 </head>
 <body>
@@ -351,26 +357,38 @@ body{font-family:'Gothic A1',sans-serif;background:var(--bg);color:var(--t1);min
     <div id="small-multiples" class="small-multiples"><div class="loading">데이터 로딩 중</div></div>
   </div>
 
-  <div class="panel" id="rank-panel">
-    <div class="map-header">
-      <div>
-        <div class="panel-title">지역 순위</div>
-        <div class="panel-subtitle" id="rank-subtitle">전국 시도 기준</div>
-      </div>
-      <select class="rank-level-select" id="rank-level" onchange="renderRanking()">
-        <option value="sido">시도</option>
-        <option value="sgg">시군구</option>
-        <option value="emd">읍면동</option>
-      </select>
-    </div>
+  <div id="rank-panel">
     <div class="rank-controls">
       <button class="rank-metric-btn active" data-rmetric="pop" onclick="setRankMetric(this,'pop')">인구수</button>
       <button class="rank-metric-btn" data-rmetric="aging" onclick="setRankMetric(this,'aging')">고령화지수</button>
       <button class="rank-metric-btn" data-rmetric="young" onclick="setRankMetric(this,'young')">유소년비율</button>
       <button class="rank-metric-btn" data-rmetric="working" onclick="setRankMetric(this,'working')">생산가능인구</button>
     </div>
-    <div class="rank-scroll" id="rank-scroll">
-      <table class="rank-table"><thead><tr><th>순위</th><th>지역</th><th>값</th><th></th></tr></thead><tbody id="rank-body"></tbody></table>
+    <div class="rank-dual-grid">
+      <div class="panel rank-card">
+        <div class="rank-card-header">
+          <div class="panel-title">시도 순위</div>
+          <div class="rank-order-toggle">
+            <button class="rank-order-btn active" data-level="sido" data-order="desc" onclick="setRankOrder('sido','desc',this)">상위</button>
+            <button class="rank-order-btn" data-level="sido" data-order="asc" onclick="setRankOrder('sido','asc',this)">하위</button>
+          </div>
+        </div>
+        <div class="rank-scroll">
+          <table class="rank-table"><thead><tr><th>순위</th><th>지역</th><th id="rank-header-sido" style="text-align:right">인구(명)</th><th></th></tr></thead><tbody id="rank-body-sido"></tbody></table>
+        </div>
+      </div>
+      <div class="panel rank-card">
+        <div class="rank-card-header">
+          <div class="panel-title">시군구 순위</div>
+          <div class="rank-order-toggle">
+            <button class="rank-order-btn active" data-level="sgg" data-order="desc" onclick="setRankOrder('sgg','desc',this)">상위</button>
+            <button class="rank-order-btn" data-level="sgg" data-order="asc" onclick="setRankOrder('sgg','asc',this)">하위</button>
+          </div>
+        </div>
+        <div class="rank-scroll">
+          <table class="rank-table"><thead><tr><th>순위</th><th>지역</th><th id="rank-header-sgg" style="text-align:right">인구(명)</th><th></th></tr></thead><tbody id="rank-body-sgg"></tbody></table>
+        </div>
+      </div>
     </div>
   </div>
 </main>
@@ -1334,23 +1352,27 @@ function changeBasemap(style) {
 
 // ===== RANKINGS =====
 let rankMetric = 'pop';
+const rankOrder = { sido: 'desc', sgg: 'desc' };
 
 function setRankMetric(btn, metric) {
   rankMetric = metric;
   document.querySelectorAll('.rank-metric-btn').forEach(b => b.classList.toggle('active', b.dataset.rmetric === metric));
+  const metricLabels = { pop: '인구(명)', aging: '고령화지수', young: '유소년(%)', working: '생산가능(%)' };
+  const label = metricLabels[metric];
+  document.getElementById('rank-header-sido').textContent = label;
+  document.getElementById('rank-header-sgg').textContent = label;
   renderRanking();
 }
 
-function renderRanking() {
-  const level = document.getElementById('rank-level').value;
-  const tbody = document.getElementById('rank-body');
-  const levelNames = { sido: '시도', sgg: '시군구', emd: '읍면동' };
-  document.getElementById('rank-subtitle').textContent = `전국 ${levelNames[level]} 기준`;
+function setRankOrder(level, order, btn) {
+  rankOrder[level] = order;
+  btn.closest('.rank-order-toggle').querySelectorAll('.rank-order-btn').forEach(b => b.classList.toggle('active', b.dataset.order === order));
+  renderRankCard(level);
+}
 
-  let pool;
-  if (level === 'sido') pool = Object.keys(S.regionTree.sido);
-  else if (level === 'sgg') pool = Object.keys(S.regionTree.sgg);
-  else pool = Object.keys(S.regionTree.emd);
+function renderRankCard(level) {
+  const tbody = document.getElementById(`rank-body-${level}`);
+  const pool = level === 'sido' ? Object.keys(S.regionTree.sido) : Object.keys(S.regionTree.sgg);
 
   const items = pool.map(code => {
     const kpi = calcKPI(code);
@@ -1364,16 +1386,10 @@ function renderRanking() {
     return { code, val, name: getRegionName(code), parent: getParentName(code) };
   }).filter(x => x.val > 0);
 
-  const desc = rankMetric === 'pop' || rankMetric === 'aging';
+  const desc = rankOrder[level] === 'desc';
   items.sort((a, b) => desc ? b.val - a.val : a.val - b.val);
 
-  const maxVal = items.length ? items[0].val : 1;
-  const metricLabels = { pop: '인구(명)', aging: '고령화지수', young: '유소년(%)', working: '생산가능(%)' };
-
-  // Update table header
-  const thead = tbody.closest('table').querySelector('thead tr');
-  thead.innerHTML = `<th>순위</th><th>지역</th><th style="text-align:right">${metricLabels[rankMetric]}</th><th></th>`;
-
+  const maxVal = desc ? items[0]?.val || 1 : Math.max(...items.map(x => x.val), 1);
   const top = items.slice(0, 100);
   tbody.innerHTML = top.map((item, i) => {
     const barW = (item.val / maxVal * 100).toFixed(1);
@@ -1387,6 +1403,11 @@ function renderRanking() {
       <td class="rank-bar-cell"><div class="rank-bar" style="width:${barW}%"></div></td>
     </tr>`;
   }).join('');
+}
+
+function renderRanking() {
+  renderRankCard('sido');
+  renderRankCard('sgg');
 }
 
 function mapDrillUp() {

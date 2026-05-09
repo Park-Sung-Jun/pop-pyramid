@@ -320,7 +320,7 @@ body{font-family:'Gothic A1',sans-serif;background:var(--bg);color:var(--t1);min
     </div>
 
     <div class="panel trio-panel">
-      <div class="panel-title">Lift 분석</div>
+      <div class="panel-title">Lift 분석 <span title="Lift = (선택지역 연령대 비율 / 대조군 연령대 비율 − 1) × 100. 양수면 대조군보다 해당 연령대가 더 많음을 의미합니다." style="font-size:.65rem;font-weight:400;color:var(--t3);cursor:help;border-bottom:1px dashed var(--t3)">Lift란?</span></div>
       <div class="panel-subtitle" id="lift-subtitle">선택지역 vs 대조군</div>
       <div id="lift-chart" class="lift-chart"></div>
       <div id="lift-summary" class="lift-summary"></div>
@@ -330,17 +330,17 @@ body{font-family:'Gothic A1',sans-serif;background:var(--bg);color:var(--t1);min
   <div class="sim-grid">
     <div class="panel">
       <div class="panel-title">유사 시도</div>
-      <div class="panel-subtitle">코사인 유사도 TOP 10</div>
+      <div class="panel-subtitle">코사인 유사도 TOP 10 <span title="코사인 유사도 = 두 지역의 연령대별 인구 비율 벡터 간 각도의 코사인값. 1에 가까울수록 인구구조가 유사합니다." style="font-size:.65rem;font-weight:400;color:var(--t3);cursor:help;border-bottom:1px dashed var(--t3)">유사도란?</span></div>
       <div id="sim-sido"><div class="loading">계산 중</div></div>
     </div>
     <div class="panel">
       <div class="panel-title">유사 시군구</div>
-      <div class="panel-subtitle">코사인 유사도 TOP 10</div>
+      <div class="panel-subtitle">코사인 유사도 TOP 10 <span title="코사인 유사도 = 두 지역의 연령대별 인구 비율 벡터 간 각도의 코사인값. 1에 가까울수록 인구구조가 유사합니다." style="font-size:.65rem;font-weight:400;color:var(--t3);cursor:help;border-bottom:1px dashed var(--t3)">유사도란?</span></div>
       <div id="sim-sgg"><div class="loading">계산 중</div></div>
     </div>
     <div class="panel">
       <div class="panel-title">유사 읍면동</div>
-      <div class="panel-subtitle">코사인 유사도 TOP 10</div>
+      <div class="panel-subtitle">코사인 유사도 TOP 10 <span title="코사인 유사도 = 두 지역의 연령대별 인구 비율 벡터 간 각도의 코사인값. 1에 가까울수록 인구구조가 유사합니다." style="font-size:.65rem;font-weight:400;color:var(--t3);cursor:help;border-bottom:1px dashed var(--t3)">유사도란?</span></div>
       <div id="sim-emd"><div class="loading">계산 중</div></div>
     </div>
   </div>
@@ -760,9 +760,9 @@ function renderLift() {
     <div class="lift-summary-row"><span class="label">유소년 비율</span><span class="value" style="color:var(--accent)">${kpi.youngRatio}%</span></div>
     <div class="lift-summary-row"><span class="label">생산가능인구</span><span class="value">${kpi.workingRatio}%</span></div>
     <div style="margin-top:10px;font-size:.7rem;color:var(--t3)">
-      <div style="font-weight:700;margin-bottom:4px;color:var(--lift-pos)">▲ 과대대표 TOP 3</div>
+      <div style="font-weight:700;margin-bottom:4px;color:var(--lift-pos)">Lift 상위 Top 3</div>
       ${top3pos.map(l => `<div>${l.band}세: +${l.lift.toFixed(1)}%</div>`).join('')}
-      <div style="font-weight:700;margin:8px 0 4px;color:var(--lift-neg)">▼ 과소대표 TOP 3</div>
+      <div style="font-weight:700;margin:8px 0 4px;color:var(--lift-neg)">Lift 하위 Top 3</div>
       ${top3neg.map(l => `<div>${l.band}세: ${l.lift.toFixed(1)}%</div>`).join('')}
     </div>`;
 }

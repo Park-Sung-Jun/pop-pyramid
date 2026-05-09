@@ -1266,13 +1266,12 @@ async function renderMap() {
     }
   }).addTo(map);
 
-  // Add 시군구 boundary overlay when viewing 읍면동
+  // Add boundary overlay for drill-down context
   if (mapLevel === 'emd' && mapParent) {
     const sggCacheKey = `${adkVersion}_sgg`;
     let sggFc = mapGeoCache[sggCacheKey];
     if (!sggFc) { sggFc = await adk.get(adkVersion, 'sgg'); mapGeoCache[sggCacheKey] = sggFc; }
-    const sggFeatures = sggFc.features;
-    window._sggBorderLayer = L.geoJSON({ type: 'FeatureCollection', features: sggFeatures }, {
+    window._sggBorderLayer = L.geoJSON({ type: 'FeatureCollection', features: sggFc.features }, {
       interactive: false,
       style(f) {
         const isPrimary = f.properties.sggcd === mapParent;
@@ -1286,19 +1285,30 @@ async function renderMap() {
       },
       pane: 'sggBorderPane'
     }).addTo(map);
+  } else if (mapLevel === 'sgg' && mapParent) {
+    const sidoCacheKey = `${adkVersion}_sido`;
+    let sidoFc = mapGeoCache[sidoCacheKey];
+    if (!sidoFc) { sidoFc = await adk.get(adkVersion, 'sido'); mapGeoCache[sidoCacheKey] = sidoFc; }
+    window._sggBorderLayer = L.geoJSON({ type: 'FeatureCollection', features: sidoFc.features }, {
+      interactive: false,
+      style(f) {
+        const isPrimary = f.properties.sidocd === mapParent;
+        return {
+          fillColor: 'transparent', fillOpacity: 0,
+          color: isPrimary ? '#1A202C' : 'rgba(150,150,150,0.2)',
+          weight: isPrimary ? 3.5 : 0.6,
+          opacity: 1,
+          dashArray: isPrimary ? null : '4 3'
+        };
+      },
+      pane: 'sggBorderPane'
+    }).addTo(map);
   }
 
-  // Fit bounds to primary area
+  // Fit bounds
   if (mapLevel === 'emd' && mapParent) {
     const primaryLayers = [];
     mapLayer.eachLayer(l => { if (l.feature.properties.sggcd === mapParent) primaryLayers.push(l); });
-    if (primaryLayers.length) {
-      const group = L.featureGroup(primaryLayers);
-      try { map.fitBounds(group.getBounds(), { padding: [40, 40] }); } catch(e) {}
-    }
-  } else if (mapLevel === 'sgg' && mapParent) {
-    const primaryLayers = [];
-    mapLayer.eachLayer(l => { if (l.feature.properties.sidocd === mapParent) primaryLayers.push(l); });
     if (primaryLayers.length) {
       const group = L.featureGroup(primaryLayers);
       try { map.fitBounds(group.getBounds(), { padding: [40, 40] }); } catch(e) {}

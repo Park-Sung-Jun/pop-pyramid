@@ -554,7 +554,9 @@ function getPercents(code) {
   };
 }
 
+const _kpiCache = {};
 function calcKPI(code) {
+  if (_kpiCache[code]) return _kpiCache[code];
   const r = S.data.regions[code];
   if (!r) return {};
   const m = r.m, f = r.f;
@@ -563,13 +565,15 @@ function calcKPI(code) {
   const total = m.reduce((a,b)=>a+b,0) + f.reduce((a,b)=>a+b,0);
   const working = total - young - elderly; // 15-64
 
-  return {
+  const result = {
     total,
     agingIndex: young > 0 ? (elderly / young * 100).toFixed(1) : '∞',
     youngRatio: total > 0 ? (young / total * 100).toFixed(1) : '0',
     workingRatio: total > 0 ? (working / total * 100).toFixed(1) : '0',
     elderlyRatio: total > 0 ? (elderly / total * 100).toFixed(1) : '0'
   };
+  _kpiCache[code] = result;
+  return result;
 }
 
 function calcLift(selCode, ctrlCode) {
@@ -585,23 +589,29 @@ function calcLift(selCode, ctrlCode) {
   });
 }
 
-function cosineSimilarity(code1, code2) {
-  const r1 = S.data.regions[code1];
-  const r2 = S.data.regions[code2];
-  if (!r1 || !r2) return 0;
-  const t1 = r1.m.reduce((a,b)=>a+b,0) + r1.f.reduce((a,b)=>a+b,0);
-  const t2 = r2.m.reduce((a,b)=>a+b,0) + r2.f.reduce((a,b)=>a+b,0);
-  if (t1 === 0 || t2 === 0) return 0;
+const _normVecCache = {};
+function _getNormVec(code) {
+  if (_normVecCache[code]) return _normVecCache[code];
+  const r = S.data.regions[code];
+  if (!r) return null;
+  const t = r.m.reduce((a,b)=>a+b,0) + r.f.reduce((a,b)=>a+b,0);
+  if (t === 0) return null;
+  const vec = new Float32Array(42);
+  let mag = 0;
+  for (let i = 0; i < 21; i++) { vec[i] = r.m[i]/t; vec[i+21] = r.f[i]/t; mag += vec[i]*vec[i] + vec[i+21]*vec[i+21]; }
+  mag = Math.sqrt(mag);
+  if (mag === 0) return null;
+  for (let i = 0; i < 42; i++) vec[i] /= mag;
+  _normVecCache[code] = vec;
+  return vec;
+}
 
-  let dot = 0, mag1 = 0, mag2 = 0;
-  for (let i = 0; i < 21; i++) {
-    const a = r1.m[i]/t1, b = r2.m[i]/t2;
-    const c = r1.f[i]/t1, d = r2.f[i]/t2;
-    dot += a*b + c*d;
-    mag1 += a*a + c*c;
-    mag2 += b*b + d*d;
-  }
-  return dot / (Math.sqrt(mag1) * Math.sqrt(mag2));
+function cosineSimilarity(code1, code2) {
+  const v1 = _getNormVec(code1), v2 = _getNormVec(code2);
+  if (!v1 || !v2) return 0;
+  let dot = 0;
+  for (let i = 0; i < 42; i++) dot += v1[i] * v2[i];
+  return dot;
 }
 
 function findSimilar(code, level, topN = 10) {
@@ -626,16 +636,24 @@ function renderAll() {
   renderKPI();
   renderPyramid();
   renderLift();
-  renderSimilar();
   renderSmallMultiples();
-  renderRanking();
-  if (mapLayer) mapLayer.setStyle(f => {
-    const code = getCodeFromFeature(f, mapLevel);
-    const v = getMetricValue(code);
-    const scale = getColorScale(mapLayer.getLayers().map(l => getMetricValue(getCodeFromFeature(l.feature, mapLevel))));
-    const isSelected = code === S.selected || S.selected?.startsWith(code);
-    return { fillColor: scale.getColor(v), fillOpacity: 0.75, color: isSelected ? '#1A202C' : '#fff', weight: isSelected ? 2.5 : 0.8, opacity: 1 };
+  if (window._simTimer) cancelAnimationFrame(window._simTimer);
+  if (window._rankTimer) cancelAnimationFrame(window._rankTimer);
+  window._simTimer = requestAnimationFrame(() => {
+    renderSimilar();
+    window._rankTimer = requestAnimationFrame(() => renderRanking());
   });
+  if (mapLayer) {
+    const allVals = mapLayer.getLayers().map(l => getMetricValue(getCodeFromFeature(l.feature, mapLevel)));
+    const scale = getColorScale(allVals);
+    mapLayer.setStyle(f => {
+      const code = getCodeFromFeature(f, mapLevel);
+      const v = getMetricValue(code);
+      const isSelected = code === S.selected || S.selected?.startsWith(code);
+      const isNeighbor = (mapLevel === 'emd' && mapParent && f.properties.sggcd !== mapParent);
+      return { fillColor: scale.getColor(v), fillOpacity: isNeighbor ? 0.45 : 0.75, color: isSelected ? '#1A202C' : (isNeighbor ? 'rgba(255,255,255,0.3)' : '#fff'), weight: isSelected ? 2.5 : (isNeighbor ? 0.3 : 0.5), opacity: 1 };
+    });
+  }
 }
 
 function renderKPI() {
@@ -976,6 +994,63 @@ const PALETTES = {
   'cool':        ['#f7fcfd','#ccece6','#66c2a4','#41ae76','#238b45','#006d2c','#00441b']
 };
 let mapGeoCache = {};
+let _sggNeighborCache = {};
+
+function _simplifyCoords(coords, tol) {
+  if (coords.length <= 2) return coords;
+  let maxD = 0, idx = 0;
+  const [x0, y0] = coords[0], [x1, y1] = coords[coords.length - 1];
+  const dx = x1 - x0, dy = y1 - y0, lenSq = dx * dx + dy * dy;
+  for (let i = 1; i < coords.length - 1; i++) {
+    const [px, py] = coords[i];
+    let d;
+    if (lenSq === 0) { d = Math.sqrt((px-x0)*(px-x0)+(py-y0)*(py-y0)); }
+    else { const t = Math.max(0, Math.min(1, ((px-x0)*dx+(py-y0)*dy)/lenSq)); d = Math.sqrt((px-x0-t*dx)**2+(py-y0-t*dy)**2); }
+    if (d > maxD) { maxD = d; idx = i; }
+  }
+  if (maxD > tol) {
+    const left = _simplifyCoords(coords.slice(0, idx + 1), tol);
+    const right = _simplifyCoords(coords.slice(idx), tol);
+    return left.slice(0, -1).concat(right);
+  }
+  return [coords[0], coords[coords.length - 1]];
+}
+
+function _simplifyGeometry(geom, tol) {
+  if (geom.type === 'Polygon') {
+    return { type: 'Polygon', coordinates: geom.coordinates.map(ring => _simplifyCoords(ring, tol)) };
+  } else if (geom.type === 'MultiPolygon') {
+    return { type: 'MultiPolygon', coordinates: geom.coordinates.map(poly => poly.map(ring => _simplifyCoords(ring, tol))) };
+  }
+  return geom;
+}
+
+function _computeSggNeighbors(sggFc) {
+  const bboxes = {};
+  for (const f of sggFc.features) {
+    const code = f.properties.sggcd;
+    let minLat = 90, maxLat = -90, minLng = 180, maxLng = -180;
+    const walk = (arr) => {
+      if (typeof arr[0] === 'number') { const lng = arr[0], lat = arr[1]; if (lat > 20 && lat < 45 && lng > 120 && lng < 135) { minLat = Math.min(minLat, lat); maxLat = Math.max(maxLat, lat); minLng = Math.min(minLng, lng); maxLng = Math.max(maxLng, lng); } return; }
+      for (const a of arr) walk(a);
+    };
+    walk(f.geometry.coordinates);
+    bboxes[code] = [minLat, maxLat, minLng, maxLng];
+  }
+  const pad = 0.02;
+  for (const c1 in bboxes) {
+    const [aMinLat, aMaxLat, aMinLng, aMaxLng] = bboxes[c1];
+    const neighbors = new Set([c1]);
+    for (const c2 in bboxes) {
+      if (c1 === c2) continue;
+      const [bMinLat, bMaxLat, bMinLng, bMaxLng] = bboxes[c2];
+      if (aMinLat - pad <= bMaxLat && aMaxLat + pad >= bMinLat && aMinLng - pad <= bMaxLng && aMaxLng + pad >= bMinLng) {
+        neighbors.add(c2);
+      }
+    }
+    _sggNeighborCache[c1] = neighbors;
+  }
+}
 
 async function initMap() {
   const koreaBounds = L.latLngBounds([32.5, 123.5], [39.5, 132.5]);
@@ -1070,6 +1145,18 @@ async function renderMap() {
   let features = fc.features;
   if (mapLevel === 'sgg' && mapParent) {
     features = features.filter(f => f.properties.sidocd === mapParent);
+  } else if (mapLevel === 'emd' && mapParent) {
+    if (!_sggNeighborCache[mapParent]) {
+      const sggCacheKey = `${adkVersion}_sgg`;
+      let sggFc = mapGeoCache[sggCacheKey];
+      if (!sggFc) { sggFc = await adk.get(adkVersion, 'sgg'); mapGeoCache[sggCacheKey] = sggFc; }
+      _computeSggNeighbors(sggFc);
+    }
+    const allowed = _sggNeighborCache[mapParent] || new Set([mapParent]);
+    features = features.filter(f => allowed.has(f.properties.sggcd)).map(f => {
+      if (f.properties.sggcd === mapParent) return f;
+      return { ...f, geometry: _simplifyGeometry(f.geometry, 0.001) };
+    });
   }
 
   const filteredFc = { type: 'FeatureCollection', features };
@@ -1101,24 +1188,8 @@ async function renderMap() {
     },
     onEachFeature(f, layer) {
       const code = getCodeFromFeature(f, mapLevel);
-      const p = f.properties;
-      const pathParts = [];
-      if (p.sidonm) pathParts.push(p.sidonm);
-      if (p.sggnm) pathParts.push(p.sggnm);
-      if (p.emdnm) pathParts.push(p.emdnm);
-      const name = pathParts[pathParts.length - 1] || '';
-      const pathStr = pathParts.length > 1 ? pathParts.slice(0, -1).join(' > ') : '';
-      const kpi = calcKPI(code);
-      const pop = kpi.total ? kpi.total.toLocaleString() : '-';
-
-      layer._ttContent = `
-        ${pathStr ? `<div style="font-size:.65rem;color:rgba(255,255,255,.5);margin-bottom:2px">${pathStr}</div>` : ''}
-        <div class="tt-name">${name}</div>
-        <div class="tt-row"><span class="tt-label">인구</span><span class="tt-val">${pop}명</span></div>
-        <div class="tt-row"><span class="tt-label">고령화지수</span><span class="tt-val">${kpi.agingIndex || '-'}</span></div>
-        <div class="tt-row"><span class="tt-label">유소년</span><span class="tt-val">${kpi.youngRatio || '-'}%</span></div>
-        <div class="tt-row"><span class="tt-label">생산가능</span><span class="tt-val">${kpi.workingRatio || '-'}%</span></div>
-      `;
+      layer._fCode = code;
+      layer._fProps = f.properties;
 
       layer.on('mouseover', function(e) {
         if (window._hoveredMapLayer && window._hoveredMapLayer !== this) {
@@ -1127,7 +1198,22 @@ async function renderMap() {
         }
         window._hoveredMapLayer = this;
         if (!this.getTooltip()) {
-          this.bindTooltip(this._ttContent, { sticky: true, className: 'map-tooltip-custom', direction: 'right', offset: [12, 0] });
+          const p = this._fProps;
+          const pathParts = [];
+          if (p.sidonm) pathParts.push(p.sidonm);
+          if (p.sggnm) pathParts.push(p.sggnm);
+          if (p.emdnm) pathParts.push(p.emdnm);
+          const name = pathParts[pathParts.length - 1] || '';
+          const pathStr = pathParts.length > 1 ? pathParts.slice(0, -1).join(' > ') : '';
+          const kpi = calcKPI(this._fCode);
+          const pop = kpi.total ? kpi.total.toLocaleString() : '-';
+          const tt = `${pathStr ? `<div style="font-size:.65rem;color:rgba(255,255,255,.5);margin-bottom:2px">${pathStr}</div>` : ''}
+            <div class="tt-name">${name}</div>
+            <div class="tt-row"><span class="tt-label">인구</span><span class="tt-val">${pop}명</span></div>
+            <div class="tt-row"><span class="tt-label">고령화지수</span><span class="tt-val">${kpi.agingIndex || '-'}</span></div>
+            <div class="tt-row"><span class="tt-label">유소년</span><span class="tt-val">${kpi.youngRatio || '-'}%</span></div>
+            <div class="tt-row"><span class="tt-label">생산가능</span><span class="tt-val">${kpi.workingRatio || '-'}%</span></div>`;
+          this.bindTooltip(tt, { sticky: true, className: 'map-tooltip-custom', direction: 'right', offset: [12, 0] });
         }
         this.openTooltip(e.latlng);
         this.setStyle({ weight: 2, color: '#1A202C', fillOpacity: 0.85 });
@@ -1141,14 +1227,16 @@ async function renderMap() {
 
       layer.on('click', function(e) {
         L.DomEvent.stopPropagation(e);
-        navigateToRegion(code);
+        const c = this._fCode;
+        setTimeout(() => navigateToRegion(c), 0);
       });
 
       layer.on('dblclick', function(e) {
         L.DomEvent.stopPropagation(e);
-        if (mapLevel === 'sido') { mapLevel = 'sgg'; mapParent = code; renderMap(); }
-        else if (mapLevel === 'sgg' && S.regionTree.sgg[code]?.children?.length > 0) {
-          mapLevel = 'emd'; mapParent = code; renderMap();
+        const c = this._fCode;
+        if (mapLevel === 'sido') { mapLevel = 'sgg'; mapParent = c; renderMap(); }
+        else if (mapLevel === 'sgg' && S.regionTree.sgg[c]?.children?.length > 0) {
+          mapLevel = 'emd'; mapParent = c; renderMap();
         }
       });
     }

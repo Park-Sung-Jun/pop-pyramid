@@ -178,9 +178,37 @@ body{font-family:'Gothic A1',sans-serif;background:var(--bg);color:var(--t1);min
 .map-legend{display:flex;align-items:center;gap:6px;margin-top:10px;font-size:.7rem;color:var(--t3);justify-content:center}
 .map-legend-gradient{width:200px;height:10px;border-radius:3px;border:1px solid var(--border)}
 .map-loading-overlay{position:absolute;top:0;left:0;right:0;bottom:0;background:rgba(255,255,255,.85);display:flex;align-items:center;justify-content:center;z-index:500;border-radius:8px;font-size:.85rem;color:var(--t3)}
-.map-info{position:absolute;bottom:10px;right:10px;background:rgba(255,255,255,.92);padding:8px 12px;border-radius:6px;font-size:.72rem;z-index:400;box-shadow:0 1px 6px rgba(0,0,0,.1);max-width:200px}
-.map-info .region-name{font-weight:700;font-size:.8rem;margin-bottom:2px}
-.map-info .metric-value{font-weight:700;color:var(--accent)}
+.map-tooltip-custom{background:rgba(26,32,44,.92)!important;color:#fff!important;border:none!important;border-radius:8px!important;padding:10px 14px!important;font-family:'Gothic A1',sans-serif!important;font-size:.75rem!important;box-shadow:0 4px 12px rgba(0,0,0,.2)!important;max-width:240px!important;line-height:1.5}
+.map-tooltip-custom .tt-name{font-weight:800;font-size:.85rem;margin-bottom:4px;border-bottom:1px solid rgba(255,255,255,.15);padding-bottom:4px}
+.map-tooltip-custom .tt-row{display:flex;justify-content:space-between;gap:12px}
+.map-tooltip-custom .tt-label{color:rgba(255,255,255,.6)}
+.map-tooltip-custom .tt-val{font-weight:700;font-family:'IBM Plex Mono',monospace}
+.leaflet-tooltip.map-tooltip-custom::before{border-right-color:rgba(26,32,44,.92)!important}
+
+/* Search Button */
+.btn-search{width:100%;padding:10px;background:var(--accent);color:#fff;border:none;border-radius:6px;font-size:.85rem;font-weight:700;font-family:inherit;cursor:pointer;margin-top:4px;transition:background .15s;letter-spacing:.5px}
+.btn-search:hover{background:var(--accent-dark)}
+.btn-search:active{transform:scale(.98)}
+
+/* Rankings */
+.rank-controls{display:flex;gap:8px;margin:12px 0;flex-wrap:wrap}
+.rank-metric-btn{padding:6px 14px;font-size:.75rem;font-weight:600;border:1px solid var(--border);border-radius:16px;background:var(--surface);color:var(--t3);cursor:pointer;font-family:inherit;transition:all .15s}
+.rank-metric-btn.active{background:var(--accent);color:#fff;border-color:var(--accent)}
+.rank-level-select{padding:5px 8px;border:1px solid var(--border);border-radius:6px;font-size:.75rem;font-family:inherit;background:var(--surface)}
+.rank-table{width:100%;border-collapse:collapse;font-size:.78rem}
+.rank-table th{text-align:left;padding:8px 6px;border-bottom:2px solid var(--border);font-size:.7rem;color:var(--t3);font-weight:600;text-transform:uppercase;letter-spacing:.5px;position:sticky;top:0;background:var(--surface)}
+.rank-table td{padding:7px 6px;border-bottom:1px solid var(--border)}
+.rank-table tr{cursor:pointer;transition:background .1s}
+.rank-table tr:hover{background:var(--bg)}
+.rank-table .rank-num{width:36px;text-align:center;font-weight:700;color:var(--t4)}
+.rank-table .rank-name{font-weight:600}
+.rank-table .rank-parent{font-size:.65rem;color:var(--t4)}
+.rank-table .rank-val{text-align:right;font-weight:700;font-family:'IBM Plex Mono',monospace}
+.rank-table .rank-bar-cell{width:100px}
+.rank-bar{height:8px;border-radius:4px;background:var(--accent)}
+.rank-scroll{max-height:400px;overflow-y:auto}
+.rank-scroll::-webkit-scrollbar{width:4px}
+.rank-scroll::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px}
 </style>
 </head>
 <body>
@@ -195,6 +223,7 @@ body{font-family:'Gothic A1',sans-serif;background:var(--bg);color:var(--t1);min
     <select id="sel-sido"><option value="">시도 선택...</option></select>
     <select id="sel-sgg"><option value="">시군구 선택...</option></select>
     <select id="sel-emd"><option value="">읍면동 선택...</option></select>
+    <button class="btn-search" id="btn-search">조회하기</button>
   </div>
 
   <div class="sidebar-section">
@@ -239,7 +268,6 @@ body{font-family:'Gothic A1',sans-serif;background:var(--bg);color:var(--t1);min
     </div>
     <div id="map" style="height:450px"></div>
     <div id="map-legend" class="map-legend"></div>
-    <div id="map-info" class="map-info" style="display:none"></div>
   </div>
 
   <div class="content-grid">
@@ -281,10 +309,33 @@ body{font-family:'Gothic A1',sans-serif;background:var(--bg);color:var(--t1);min
     <div id="sim-emd" class="sim-tab-panel"><div class="loading">계산 중</div></div>
   </div>
 
-  <div class="panel">
+  <div class="panel" style="margin-bottom:24px">
     <div class="panel-title" id="sm-title">하위 행정구역</div>
     <div class="panel-subtitle" id="sm-subtitle">클릭하여 해당 지역으로 이동</div>
     <div id="small-multiples" class="small-multiples"><div class="loading">데이터 로딩 중</div></div>
+  </div>
+
+  <div class="panel" id="rank-panel">
+    <div class="map-header">
+      <div>
+        <div class="panel-title">지역 순위</div>
+        <div class="panel-subtitle" id="rank-subtitle">전국 시도 기준</div>
+      </div>
+      <select class="rank-level-select" id="rank-level" onchange="renderRanking()">
+        <option value="sido">시도</option>
+        <option value="sgg">시군구</option>
+        <option value="emd">읍면동</option>
+      </select>
+    </div>
+    <div class="rank-controls">
+      <button class="rank-metric-btn active" data-rmetric="pop" onclick="setRankMetric(this,'pop')">인구수</button>
+      <button class="rank-metric-btn" data-rmetric="aging" onclick="setRankMetric(this,'aging')">고령화지수</button>
+      <button class="rank-metric-btn" data-rmetric="young" onclick="setRankMetric(this,'young')">유소년비율</button>
+      <button class="rank-metric-btn" data-rmetric="working" onclick="setRankMetric(this,'working')">생산가능인구</button>
+    </div>
+    <div class="rank-scroll" id="rank-scroll">
+      <table class="rank-table"><thead><tr><th>순위</th><th>지역</th><th>값</th><th></th></tr></thead><tbody id="rank-body"></tbody></table>
+    </div>
   </div>
 </main>
 
@@ -487,6 +538,7 @@ function renderAll() {
   renderLift();
   renderSimilar();
   renderSmallMultiples();
+  renderRanking();
   if (mapLayer) mapLayer.setStyle(f => {
     const code = getCodeFromFeature(f, mapLevel);
     const v = getMetricValue(code);
@@ -791,21 +843,26 @@ function switchSimTab(btn, panelId) {
 
 // ===== EVENT LISTENERS =====
 document.getElementById('sel-sido').addEventListener('change', function() {
-  const code = this.value;
-  populateSgg(code);
+  populateSgg(this.value);
   document.getElementById('sel-emd').innerHTML = '<option value="">읍면동 선택...</option>';
-  if (code) selectRegion(code);
 });
 
 document.getElementById('sel-sgg').addEventListener('change', function() {
-  const code = this.value;
-  populateEmd(code);
-  if (code) selectRegion(code);
+  populateEmd(this.value);
 });
 
-document.getElementById('sel-emd').addEventListener('change', function() {
-  const code = this.value;
-  if (code) selectRegion(code);
+document.getElementById('btn-search').addEventListener('click', function() {
+  const code = document.getElementById('sel-emd').value
+    || document.getElementById('sel-sgg').value
+    || document.getElementById('sel-sido').value;
+  if (code) {
+    selectRegion(code);
+    // Sync map to selected region level
+    if (code.length === 2) { mapLevel = 'sido'; mapParent = null; }
+    else if (code.length === 5) { mapLevel = 'sgg'; mapParent = code.slice(0,2); }
+    else if (code.length === 10) { mapLevel = 'emd'; mapParent = code.slice(0,5); }
+    if (adk) renderMap();
+  }
 });
 
 // ===== MAP =====
@@ -819,7 +876,7 @@ let mapMetric = 'aging';
 let mapGeoCache = {};
 
 async function initMap() {
-  map = L.map('map', { zoomSnap: 0.5, zoomDelta: 0.5 }).setView([36.5, 127.8], 7);
+  map = L.map('map', { zoomSnap: 0.5, zoomDelta: 0.5, doubleClickZoom: false }).setView([36.5, 127.8], 7);
   L.tileLayer('https://{s}.basemaps.cartocdn.com/light_nolabels/{z}/{x}/{y}{r}.png', {
     maxZoom: 18, attribution: '&copy; OSM &copy; CARTO'
   }).addTo(map);
@@ -931,36 +988,33 @@ async function renderMap() {
     onEachFeature(f, layer) {
       const code = getCodeFromFeature(f, mapLevel);
       const name = f.properties.sidonm || f.properties.sggnm || f.properties.emdnm || '';
-      const v = getMetricValue(code);
-      const label = getMetricLabel();
+      const kpi = calcKPI(code);
+      const pop = kpi.total ? kpi.total.toLocaleString() : '-';
 
-      layer.on('mouseover', function(e) {
-        this.setStyle({ weight: 3, color: '#1A202C' });
+      // Tooltip with full info
+      layer.bindTooltip(`
+        <div class="tt-name">${name}</div>
+        <div class="tt-row"><span class="tt-label">인구</span><span class="tt-val">${pop}명</span></div>
+        <div class="tt-row"><span class="tt-label">고령화지수</span><span class="tt-val">${kpi.agingIndex || '-'}</span></div>
+        <div class="tt-row"><span class="tt-label">유소년</span><span class="tt-val">${kpi.youngRatio || '-'}%</span></div>
+        <div class="tt-row"><span class="tt-label">생산가능</span><span class="tt-val">${kpi.workingRatio || '-'}%</span></div>
+      `, { sticky: true, className: 'map-tooltip-custom', direction: 'right', offset: [12, 0] });
+
+      layer.on('mouseover', function() {
+        this.setStyle({ weight: 3, color: '#1A202C', fillOpacity: 0.9 });
         this.bringToFront();
-        const info = document.getElementById('map-info');
-        info.style.display = 'block';
-        info.innerHTML = `<div class="region-name">${name}</div>
-          <div>${label}: <span class="metric-value">${v !== null ? (mapMetric === 'pop' ? v.toLocaleString() : v.toFixed(1)) : '-'}</span></div>`;
       });
-      layer.on('mouseout', function() {
-        mapLayer.resetStyle(this);
-        document.getElementById('map-info').style.display = 'none';
-      });
-      layer.on('click', function() {
-        // Select region
-        navigateToRegion(code);
-        // Drill down if possible
-        if (mapLevel === 'sido') {
-          mapLevel = 'sgg';
-          mapParent = code;
-          renderMap();
-        } else if (mapLevel === 'sgg') {
-          const hasChildren = S.regionTree.sgg[code]?.children?.length > 0;
-          if (hasChildren) {
-            mapLevel = 'emd';
-            mapParent = code;
-            renderMap();
-          }
+      layer.on('mouseout', function() { mapLayer.resetStyle(this); });
+
+      // Click = select only
+      layer.on('click', function() { navigateToRegion(code); });
+
+      // Double-click = drill down
+      layer.on('dblclick', function(e) {
+        L.DomEvent.stopPropagation(e);
+        if (mapLevel === 'sido') { mapLevel = 'sgg'; mapParent = code; renderMap(); }
+        else if (mapLevel === 'sgg' && S.regionTree.sgg[code]?.children?.length > 0) {
+          mapLevel = 'emd'; mapParent = code; renderMap();
         }
       });
     }
@@ -990,6 +1044,63 @@ async function renderMap() {
 function changeMapMetric(val) {
   mapMetric = val;
   renderMap();
+}
+
+// ===== RANKINGS =====
+let rankMetric = 'pop';
+
+function setRankMetric(btn, metric) {
+  rankMetric = metric;
+  document.querySelectorAll('.rank-metric-btn').forEach(b => b.classList.toggle('active', b.dataset.rmetric === metric));
+  renderRanking();
+}
+
+function renderRanking() {
+  const level = document.getElementById('rank-level').value;
+  const tbody = document.getElementById('rank-body');
+  const levelNames = { sido: '시도', sgg: '시군구', emd: '읍면동' };
+  document.getElementById('rank-subtitle').textContent = `전국 ${levelNames[level]} 기준`;
+
+  let pool;
+  if (level === 'sido') pool = Object.keys(S.regionTree.sido);
+  else if (level === 'sgg') pool = Object.keys(S.regionTree.sgg);
+  else pool = Object.keys(S.regionTree.emd);
+
+  const items = pool.map(code => {
+    const kpi = calcKPI(code);
+    let val;
+    switch (rankMetric) {
+      case 'pop': val = kpi.total || 0; break;
+      case 'aging': val = parseFloat(kpi.agingIndex) || 0; break;
+      case 'young': val = parseFloat(kpi.youngRatio) || 0; break;
+      case 'working': val = parseFloat(kpi.workingRatio) || 0; break;
+    }
+    return { code, val, name: getRegionName(code), parent: getParentName(code) };
+  }).filter(x => x.val > 0);
+
+  const desc = rankMetric === 'pop' || rankMetric === 'aging';
+  items.sort((a, b) => desc ? b.val - a.val : a.val - b.val);
+
+  const maxVal = items.length ? items[0].val : 1;
+  const metricLabels = { pop: '인구(명)', aging: '고령화지수', young: '유소년(%)', working: '생산가능(%)' };
+
+  // Update table header
+  const thead = tbody.closest('table').querySelector('thead tr');
+  thead.innerHTML = `<th>순위</th><th>지역</th><th style="text-align:right">${metricLabels[rankMetric]}</th><th></th>`;
+
+  const top = items.slice(0, 100);
+  tbody.innerHTML = top.map((item, i) => {
+    const barW = (item.val / maxVal * 100).toFixed(1);
+    const fmt = rankMetric === 'pop' ? item.val.toLocaleString() : item.val.toFixed(1);
+    const isSelected = item.code === S.selected;
+    const bg = isSelected ? 'background:rgba(52,152,219,.08)' : '';
+    return `<tr style="${bg}" onclick="navigateToRegion('${item.code}')">
+      <td class="rank-num">${i + 1}</td>
+      <td><div class="rank-name">${item.name}</div><div class="rank-parent">${item.parent}</div></td>
+      <td class="rank-val">${fmt}</td>
+      <td class="rank-bar-cell"><div class="rank-bar" style="width:${barW}%"></div></td>
+    </tr>`;
+  }).join('');
 }
 
 function mapDrillUp() {

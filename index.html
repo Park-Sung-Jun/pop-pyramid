@@ -868,13 +868,16 @@ function renderSimilar() {
       const r = S.data.regions[item.code];
       const name = r.name.trim();
       const parent = getParentName(item.code);
+      const pop = calcKPI(item.code).total;
+      const popStr = pop ? pop.toLocaleString() + '명' : '';
+      const parentLine = parent ? `${parent} · ${popStr}` : popStr;
       const rankCls = idx === 0 ? 'gold' : idx === 1 ? 'silver' : idx === 2 ? 'bronze' : 'normal';
       const miniPyramid = renderMiniPyramid(item.code);
       return `<div class="sim-item" onclick="navigateToRegion('${item.code}')">
         <div class="sim-rank ${rankCls}">${idx + 1}</div>
         <div class="sim-info">
           <div class="sim-name">${name}</div>
-          <div class="sim-parent">${parent}</div>
+          <div class="sim-parent">${parentLine}</div>
         </div>
         ${miniPyramid}
         <div class="sim-score">${(item.similarity * 100).toFixed(1)}%</div>

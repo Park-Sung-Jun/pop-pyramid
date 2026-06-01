@@ -126,9 +126,13 @@ body{font-family:'Gothic A1',sans-serif;background:var(--bg);color:var(--t1);min
 .lift-age{width:40px;font-size:.6rem;color:var(--t3);text-align:right;flex-shrink:0}
 .lift-bar-wrap{flex:1;position:relative;height:100%;display:flex;align-items:center}
 .lift-center{position:absolute;left:50%;top:0;bottom:0;width:1px;background:var(--border);z-index:0}
-.lift-bar{height:14px;border-radius:2px;position:absolute;z-index:1;transition:width .3s ease,left .3s ease}
+.lift-bar{height:14px;border-radius:2px;position:absolute;z-index:1;transition:width .4s cubic-bezier(.4,0,.2,1),left .4s cubic-bezier(.4,0,.2,1),filter .15s}
 .lift-bar.positive{background:var(--lift-pos)}
 .lift-bar.negative{background:var(--lift-neg)}
+.lift-row{cursor:pointer;transition:background .12s}
+.lift-row:hover{background:var(--bg);margin:0 -4px;padding:0 4px;border-radius:4px}
+.lift-row:hover .lift-bar{filter:brightness(1.15)}
+.lift-row:hover .lift-age,.lift-row:hover .lift-val{color:var(--t1);font-weight:600}
 .lift-val{font-size:.6rem;color:var(--t3);width:44px;text-align:right;flex-shrink:0}
 .lift-summary{margin-top:16px;padding-top:12px;border-top:1px solid var(--border)}
 .lift-summary-row{display:flex;justify-content:space-between;padding:5px 0;font-size:.78rem}
@@ -801,6 +805,36 @@ function showTip(e, idx) {
 }
 function hideTip() { document.getElementById('pyramid-tooltip').style.display = 'none'; }
 
+function _liftTipEl() {
+  let t = document.getElementById('lift-tooltip');
+  if (!t) {
+    t = document.createElement('div');
+    t.id = 'lift-tooltip';
+    t.className = 'pyramid-tooltip';
+    document.body.appendChild(t);
+  }
+  return t;
+}
+function showLiftTip(e, idx) {
+  const lifts = calcLift(S.selected, S.control);
+  const l = lifts[idx];
+  if (!l) return;
+  const tip = _liftTipEl();
+  const sign = l.lift >= 0 ? '+' : '';
+  tip.innerHTML = `<strong>${l.band}세</strong><br>
+    Lift: <b>${sign}${l.lift.toFixed(1)}%</b><br>
+    선택: ${l.selPct.toFixed(2)}% · 대조: ${l.ctrlPct.toFixed(2)}%`;
+  tip.style.display = 'block';
+  moveLiftTip(e);
+}
+function moveLiftTip(e) {
+  const tip = document.getElementById('lift-tooltip');
+  if (!tip) return;
+  tip.style.left = e.pageX + 12 + 'px';
+  tip.style.top = e.pageY - 30 + 'px';
+}
+function hideLiftTip() { const t = document.getElementById('lift-tooltip'); if (t) t.style.display = 'none'; }
+
 function renderLift() {
   const chart = document.getElementById('lift-chart');
   const summary = document.getElementById('lift-summary');
@@ -813,22 +847,40 @@ function renderLift() {
   const maxLift = Math.max(...lifts.map(l => Math.abs(l.lift)), 1);
   const bands = S.data.meta.bands;
 
-  let html = '';
-  for (let i = bands.length - 1; i >= 0; i--) {
+  const orderIdx = [];
+  for (let i = bands.length - 1; i >= 0; i--) orderIdx.push(i);
+
+  let rows = chart.querySelectorAll('.lift-row');
+  if (rows.length !== orderIdx.length) {
+    let html = '';
+    for (const i of orderIdx) {
+      html += `<div class="lift-row" data-idx="${i}"
+        onmouseenter="showLiftTip(event,${i})" onmousemove="moveLiftTip(event)" onmouseleave="hideLiftTip()">
+        <div class="lift-age">${bands[i]}</div>
+        <div class="lift-bar-wrap">
+          <div class="lift-center"></div>
+          <div class="lift-bar"></div>
+        </div>
+        <div class="lift-val mono"></div>
+      </div>`;
+    }
+    chart.innerHTML = html;
+    rows = chart.querySelectorAll('.lift-row');
+  }
+
+  rows.forEach((row, ri) => {
+    const i = orderIdx[ri];
     const l = lifts[i];
     const pct = Math.abs(l.lift) / maxLift * 50;
     const cls = l.lift >= 0 ? 'positive' : 'negative';
     const left = l.lift >= 0 ? '50%' : (50 - pct) + '%';
-    html += `<div class="lift-row">
-      <div class="lift-age">${bands[i]}</div>
-      <div class="lift-bar-wrap">
-        <div class="lift-center"></div>
-        <div class="lift-bar ${cls}" style="width:${pct}%;left:${left}"></div>
-      </div>
-      <div class="lift-val mono">${l.lift >= 0 ? '+' : ''}${l.lift.toFixed(1)}%</div>
-    </div>`;
-  }
-  chart.innerHTML = html;
+    const bar = row.querySelector('.lift-bar');
+    bar.classList.remove('positive', 'negative');
+    bar.classList.add(cls);
+    bar.style.width = pct + '%';
+    bar.style.left = left;
+    row.querySelector('.lift-val').textContent = (l.lift >= 0 ? '+' : '') + l.lift.toFixed(1) + '%';
+  });
 
   // Top 3 positive and negative
   const sorted = [...lifts].sort((a, b) => b.lift - a.lift);

@@ -1288,6 +1288,7 @@ const PALETTES = {
 let mapGeoCache = {};
 let mapFilteredCache = {};
 let _sggNeighborCache = {};
+let _sggBBoxCache = {};
 
 function _simplifyCoords(coords, tol) {
   if (coords.length <= 2) return coords;
@@ -1319,7 +1320,7 @@ function _simplifyGeometry(geom, tol) {
 }
 
 function _computeSggNeighbors(sggFc) {
-  const bboxes = {};
+  const bboxes = _sggBBoxCache;
   for (const f of sggFc.features) {
     const code = f.properties.sggcd;
     let minLat = 90, maxLat = -90, minLng = 180, maxLng = -180;
@@ -1364,6 +1365,51 @@ async function initMap() {
     console.error('admdongkor load failed:', e);
     document.getElementById('map-subtitle').textContent = '지도 데이터 로드 실패';
   }
+
+  let _expandTimer = null;
+  map.on('moveend', () => {
+    if (mapLevel !== 'emd' || !mapParent) return;
+    clearTimeout(_expandTimer);
+    _expandTimer = setTimeout(expandEmdToView, 200);
+  });
+}
+
+async function expandEmdToView() {
+  if (mapLevel !== 'emd' || !mapParent) return;
+  const cacheKey = `${adkVersion}_emd`;
+  const fc = mapGeoCache[cacheKey];
+  if (!fc) return;
+  const sggCacheKey = `${adkVersion}_sgg`;
+  let sggFc = mapGeoCache[sggCacheKey];
+  if (!sggFc) { sggFc = await adk.get(adkVersion, 'sgg'); mapGeoCache[sggCacheKey] = sggFc; }
+  if (Object.keys(_sggBBoxCache).length === 0) _computeSggNeighbors(sggFc);
+
+  const b = map.getBounds();
+  const pad = 0.005;
+  const minLat = b.getSouth() - pad, maxLat = b.getNorth() + pad;
+  const minLng = b.getWest() - pad, maxLng = b.getEast() + pad;
+
+  const visibleSggs = new Set([mapParent]);
+  for (const sgg in _sggBBoxCache) {
+    const [bMinLat, bMaxLat, bMinLng, bMaxLng] = _sggBBoxCache[sgg];
+    if (bMinLat <= maxLat && bMaxLat >= minLat && bMinLng <= maxLng && bMaxLng >= minLng) {
+      visibleSggs.add(sgg);
+    }
+  }
+
+  const allowed = _sggNeighborCache[mapParent] || new Set([mapParent]);
+  let added = false;
+  for (const sgg of visibleSggs) {
+    if (allowed.has(sgg)) continue;
+    allowed.add(sgg);
+    added = true;
+  }
+  if (!added) return;
+  _sggNeighborCache[mapParent] = allowed;
+
+  const filterKey = `${adkVersion}_emd_${mapParent}`;
+  delete mapFilteredCache[filterKey];
+  await renderMap();
 }
 
 function getMetricValue(code) {

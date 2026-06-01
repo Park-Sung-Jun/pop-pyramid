@@ -1398,7 +1398,7 @@ async function renderMap() {
       const allowed = _sggNeighborCache[mapParent] || new Set([mapParent]);
       features = fc.features.filter(f => allowed.has(f.properties.sggcd)).map(f => {
         if (f.properties.sggcd === mapParent) return f;
-        return { ...f, geometry: _simplifyGeometry(f.geometry, 0.002) };
+        return { ...f, geometry: _simplifyGeometry(f.geometry, 0.0002) };
       });
       mapFilteredCache[filterKey] = features;
     }

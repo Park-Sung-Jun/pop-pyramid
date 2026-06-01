@@ -732,7 +732,7 @@ function renderAll() {
       const v = getMetricValue(code);
       const isSelected = code === S.selected || S.selected?.startsWith(code) || (S.multiViewActive && S.selection.has(code));
       const isNeighbor = (mapLevel === 'emd' && mapParent && f.properties.sggcd !== mapParent);
-      return { fillColor: scale.getColor(v), fillOpacity: isNeighbor ? 0.45 : 0.75, color: isSelected ? '#1A202C' : (isNeighbor ? 'rgba(255,255,255,0.3)' : '#fff'), weight: isSelected ? 2.5 : (isNeighbor ? 0.3 : 0.5), opacity: 1 };
+      return { fillColor: scale.getColor(v), fillOpacity: isNeighbor ? 0.7 : 0.95, color: isSelected ? '#1A202C' : scale.getColor(v), weight: isSelected ? 2.5 : 0.5, opacity: 1 };
     });
   }
 }
@@ -1426,9 +1426,9 @@ async function renderMap() {
         || (mapLevel === 'sgg' && mapParent && f.properties.sidocd !== mapParent);
       return {
         fillColor: scale.getColor(v),
-        fillOpacity: isNeighbor ? 0.45 : 0.75,
-        color: isSelected ? '#1A202C' : (isNeighbor ? 'rgba(255,255,255,0.3)' : '#fff'),
-        weight: isSelected ? 2.5 : (isNeighbor ? 0.3 : 0.5),
+        fillOpacity: isNeighbor ? 0.7 : 0.95,
+        color: isSelected ? '#1A202C' : scale.getColor(v),
+        weight: isSelected ? 2.5 : 0.5,
         opacity: 1
       };
     },

@@ -38,6 +38,40 @@ body{font-family:'Gothic A1',sans-serif;background:var(--bg);color:var(--t1);min
 .preset-btn:hover,.preset-btn.active{background:var(--accent);border-color:var(--accent);color:#fff}
 .data-date{font-size:.7rem;color:var(--t4);text-align:center;margin-top:auto;padding-top:12px;border-top:1px solid rgba(255,255,255,.08)}
 
+/* Multi-select */
+.multi-toggle-btn{width:100%;padding:8px 10px;background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.15);border-radius:6px;color:#fff;font-size:.8rem;font-family:inherit;cursor:pointer;transition:all .15s;display:flex;justify-content:space-between;align-items:center}
+.multi-toggle-btn:hover{background:rgba(255,255,255,.15)}
+.multi-toggle-btn.active{background:var(--accent);border-color:var(--accent)}
+.multi-toggle-btn .state{font-size:.7rem;font-weight:700;padding:2px 6px;border-radius:3px;background:rgba(0,0,0,.25)}
+.multi-search-wrap{position:relative;margin-top:10px}
+.multi-search-wrap input{width:100%;padding:7px 10px;background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.15);border-radius:6px;color:#fff;font-size:.8rem;font-family:inherit}
+.multi-search-wrap input::placeholder{color:rgba(255,255,255,.4)}
+.multi-search-wrap input:focus{outline:none;border-color:var(--accent)}
+.multi-search-results{position:absolute;top:100%;left:0;right:0;background:#243447;border:1px solid rgba(255,255,255,.15);border-radius:6px;max-height:260px;overflow-y:auto;z-index:200;margin-top:4px;display:none;box-shadow:0 4px 12px rgba(0,0,0,.3)}
+.search-item{padding:7px 10px;font-size:.75rem;cursor:pointer;display:flex;align-items:center;gap:8px;border-bottom:1px solid rgba(255,255,255,.05)}
+.search-item:hover{background:rgba(255,255,255,.08)}
+.search-level{font-size:.6rem;background:rgba(255,255,255,.1);padding:2px 5px;border-radius:3px;color:#bbb;flex-shrink:0}
+.search-name{flex:1;color:#fff;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.search-check{color:var(--accent);font-weight:700;width:12px;text-align:center}
+.search-empty{padding:10px;font-size:.72rem;color:var(--t4);text-align:center}
+.multi-header{display:flex;justify-content:space-between;align-items:center;margin-top:10px;font-size:.7rem;color:var(--t4)}
+.multi-header .clear{background:none;border:none;color:var(--lift-pos);font-size:.7rem;cursor:pointer;padding:0;font-family:inherit}
+.multi-header .clear:hover{text-decoration:underline}
+.multi-chips{display:flex;flex-wrap:wrap;gap:5px;margin-top:8px;max-height:200px;overflow-y:auto}
+.multi-chip{display:flex;align-items:center;gap:4px;background:rgba(52,152,219,.18);border:1px solid rgba(52,152,219,.4);border-radius:14px;padding:3px 4px 3px 9px;font-size:.7rem;max-width:100%}
+.chip-name{color:#fff;max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.chip-x{background:none;border:none;color:#fff;cursor:pointer;font-size:.9rem;line-height:1;padding:0 4px;font-family:inherit;opacity:.6}
+.chip-x:hover{opacity:1;color:var(--lift-pos)}
+.multi-empty{font-size:.7rem;color:var(--t4);text-align:center;padding:10px 0}
+.multi-quick{display:flex;gap:5px;margin-bottom:8px}
+.multi-quick-btn{flex:1;padding:6px 8px;font-size:.7rem;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.12);border-radius:6px;color:#ccc;cursor:pointer;font-family:inherit;transition:all .15s}
+.multi-quick-btn:hover{background:rgba(255,255,255,.15);color:#fff}
+.multi-apply-btn{width:100%;margin-top:10px;padding:9px;background:var(--accent);border:none;border-radius:6px;color:#fff;font-size:.78rem;font-weight:700;cursor:pointer;font-family:inherit;transition:all .15s}
+.multi-apply-btn:disabled{background:rgba(255,255,255,.1);color:var(--t4);cursor:not-allowed}
+.multi-apply-btn:hover:not(:disabled){background:var(--accent-dark)}
+.multi-apply-btn.active{background:var(--lift-pos)}
+.multi-apply-btn.active:hover{background:#c0392b}
+
 /* Main */
 .main{margin-left:280px;flex:1;padding:24px;min-height:100vh}
 
@@ -236,6 +270,24 @@ body{font-family:'Gothic A1',sans-serif;background:var(--bg);color:var(--t1);min
   </div>
 
   <div class="sidebar-section">
+    <h3>다중 선택 / 합산</h3>
+    <div class="multi-quick">
+      <button class="multi-quick-btn" onclick="bulkAddAllSido()">시도 전체</button>
+      <button class="multi-quick-btn" onclick="bulkAddCurrentSggs()">현재 시도의 시군구</button>
+    </div>
+    <div class="multi-search-wrap">
+      <input id="multi-search" type="text" placeholder="시도/시군구 검색 후 클릭..." oninput="onMultiSearchInput(this.value)" onfocus="onMultiSearchInput(this.value)" onblur="setTimeout(()=>{const d=document.getElementById('multi-search-results');if(d)d.style.display='none'},200)" autocomplete="off">
+      <div id="multi-search-results" class="multi-search-results"></div>
+    </div>
+    <div class="multi-header">
+      <span>선택됨: <span id="multi-count">0</span>개</span>
+      <button class="clear" onclick="clearMultiSelection()">전체 해제</button>
+    </div>
+    <div id="multi-chips" class="multi-chips"><div class="multi-empty">검색 또는 일괄 추가로 시작</div></div>
+    <button id="multi-apply" class="multi-apply-btn" onclick="toggleMultiView()" disabled>합산 결과 보기</button>
+  </div>
+
+  <div class="sidebar-section">
     <h3>대조군 (비교 기준)</h3>
     <div class="control-presets">
       <button class="preset-btn active" data-control="nation" onclick="setControl('nation')">전국</button>
@@ -401,8 +453,13 @@ const S = {
   regionTree: null,
   selected: null,    // current region code
   control: '00',     // control group code
-  controlMode: 'nation'
+  controlMode: 'nation',
+  selection: new Set(),  // multi-select codes
+  multiViewActive: false
 };
+const MULTI_CODE = '__MULTI__';
+let _prevSelectedBeforeMulti = null;
+let _multiSearchPool = null;
 
 // ===== DATA LOADING =====
 async function loadData() {
@@ -477,6 +534,12 @@ function populateEmd(sggCode) {
 }
 
 function selectRegion(code) {
+  if (S.multiViewActive && code !== MULTI_CODE) {
+    S.multiViewActive = false;
+    const btn = document.getElementById('multi-apply');
+    if (btn) { btn.classList.remove('active'); btn.textContent = '합산 결과 보기'; }
+    _prevSelectedBeforeMulti = null;
+  }
   S.selected = code;
   renderAll();
 }
@@ -574,7 +637,7 @@ function getPercents(code) {
 
 const _kpiCache = {};
 function calcKPI(code) {
-  if (_kpiCache[code]) return _kpiCache[code];
+  if (code !== MULTI_CODE && _kpiCache[code]) return _kpiCache[code];
   const r = S.data.regions[code];
   if (!r) return {};
   const m = r.m, f = r.f;
@@ -590,7 +653,7 @@ function calcKPI(code) {
     workingRatio: total > 0 ? (working / total * 100).toFixed(1) : '0',
     elderlyRatio: total > 0 ? (elderly / total * 100).toFixed(1) : '0'
   };
-  _kpiCache[code] = result;
+  if (code !== MULTI_CODE) _kpiCache[code] = result;
   return result;
 }
 
@@ -609,7 +672,7 @@ function calcLift(selCode, ctrlCode) {
 
 const _normVecCache = {};
 function _getNormVec(code) {
-  if (_normVecCache[code]) return _normVecCache[code];
+  if (code !== MULTI_CODE && _normVecCache[code]) return _normVecCache[code];
   const r = S.data.regions[code];
   if (!r) return null;
   const t = r.m.reduce((a,b)=>a+b,0) + r.f.reduce((a,b)=>a+b,0);
@@ -620,7 +683,7 @@ function _getNormVec(code) {
   mag = Math.sqrt(mag);
   if (mag === 0) return null;
   for (let i = 0; i < 42; i++) vec[i] /= mag;
-  _normVecCache[code] = vec;
+  if (code !== MULTI_CODE) _normVecCache[code] = vec;
   return vec;
 }
 
@@ -667,7 +730,7 @@ function renderAll() {
     mapLayer.setStyle(f => {
       const code = getCodeFromFeature(f, mapLevel);
       const v = getMetricValue(code);
-      const isSelected = code === S.selected || S.selected?.startsWith(code);
+      const isSelected = code === S.selected || S.selected?.startsWith(code) || (S.multiViewActive && S.selection.has(code));
       const isNeighbor = (mapLevel === 'emd' && mapParent && f.properties.sggcd !== mapParent);
       return { fillColor: scale.getColor(v), fillOpacity: isNeighbor ? 0.45 : 0.75, color: isSelected ? '#1A202C' : (isNeighbor ? 'rgba(255,255,255,0.3)' : '#fff'), weight: isSelected ? 2.5 : (isNeighbor ? 0.3 : 0.5), opacity: 1 };
     });
@@ -843,7 +906,10 @@ function renderSmallMultiples() {
   if (!S.selected) { container.innerHTML = ''; return; }
 
   const len = S.selected.length;
-  if (S.selected === '00') {
+  if (S.selected === MULTI_CODE) {
+    children = [...S.selection];
+    title = `선택된 지역 (${children.length}개)`;
+  } else if (S.selected === '00') {
     children = Object.keys(S.regionTree.sido).sort();
     title = '전국 시도';
   } else if (len === 2) {
@@ -903,6 +969,149 @@ function renderSmallMultiples() {
   }).join('');
 }
 
+// ===== MULTI SELECTION =====
+function buildMultiSearchPool() {
+  const pool = [];
+  for (const [code, info] of Object.entries(S.regionTree.sido)) {
+    pool.push({ code, full: info.name.trim(), level: '시도' });
+  }
+  for (const [code, info] of Object.entries(S.regionTree.sgg)) {
+    const sidoName = S.regionTree.sido[info.parent]?.name.trim() || '';
+    pool.push({ code, full: sidoName + ' ' + info.name.trim(), level: '시군구' });
+  }
+  _multiSearchPool = pool;
+}
+
+function onMultiSearchInput(q) {
+  const dropdown = document.getElementById('multi-search-results');
+  if (!dropdown) return;
+  q = (q || '').trim();
+  if (!q) { dropdown.style.display = 'none'; return; }
+  if (!_multiSearchPool) buildMultiSearchPool();
+  const ql = q.toLowerCase();
+  const results = _multiSearchPool.filter(x => x.full.toLowerCase().includes(ql)).slice(0, 30);
+  if (!results.length) {
+    dropdown.innerHTML = '<div class="search-empty">결과 없음</div>';
+    dropdown.style.display = 'block';
+    return;
+  }
+  dropdown.innerHTML = results.map(r => {
+    const checked = S.selection.has(r.code) ? '✓' : '';
+    return `<div class="search-item" onmousedown="addFromMultiSearch('${r.code}')">
+      <span class="search-level">${r.level}</span>
+      <span class="search-name">${r.full}</span>
+      <span class="search-check">${checked}</span>
+    </div>`;
+  }).join('');
+  dropdown.style.display = 'block';
+}
+
+function addFromMultiSearch(code) {
+  if (S.selection.has(code)) S.selection.delete(code);
+  else S.selection.add(code);
+  afterMultiSelectionChange();
+  onMultiSearchInput(document.getElementById('multi-search').value);
+}
+
+function bulkAddAllSido() {
+  for (const c of Object.keys(S.regionTree.sido)) S.selection.add(c);
+  afterMultiSelectionChange();
+}
+
+function bulkAddCurrentSggs() {
+  const sidoVal = document.getElementById('sel-sido').value;
+  if (!sidoVal || sidoVal === '00') {
+    for (const c of Object.keys(S.regionTree.sgg)) S.selection.add(c);
+  } else {
+    const ch = S.regionTree.sido[sidoVal]?.children || [];
+    for (const c of ch) S.selection.add(c);
+  }
+  afterMultiSelectionChange();
+}
+
+function removeFromMultiSelection(code) {
+  S.selection.delete(code);
+  afterMultiSelectionChange();
+}
+
+function clearMultiSelection() {
+  S.selection.clear();
+  afterMultiSelectionChange();
+}
+
+function afterMultiSelectionChange() {
+  renderMultiChips();
+  const applyBtn = document.getElementById('multi-apply');
+  applyBtn.disabled = S.selection.size === 0;
+  if (S.multiViewActive) {
+    if (S.selection.size === 0) {
+      toggleMultiView();
+    } else {
+      buildAggregateRegion();
+      renderAll();
+      if (adk) renderMap();
+    }
+  }
+}
+
+function renderMultiChips() {
+  const wrap = document.getElementById('multi-chips');
+  document.getElementById('multi-count').textContent = S.selection.size;
+  if (S.selection.size === 0) {
+    wrap.innerHTML = '<div class="multi-empty">검색 또는 일괄 추가로 시작</div>';
+    return;
+  }
+  const arr = [...S.selection].sort();
+  wrap.innerHTML = arr.map(code => {
+    const name = getRegionName(code);
+    const parent = getParentName(code);
+    const label = parent ? parent + ' ' + name : name;
+    return `<div class="multi-chip" title="${label}">
+      <span class="chip-name">${label}</span>
+      <button class="chip-x" onclick="removeFromMultiSelection('${code}')" title="해제">×</button>
+    </div>`;
+  }).join('');
+}
+
+function buildAggregateRegion() {
+  const n = S.data.meta.bands.length;
+  const sumM = new Array(n).fill(0);
+  const sumF = new Array(n).fill(0);
+  for (const code of S.selection) {
+    const r = S.data.regions[code];
+    if (!r) continue;
+    for (let i = 0; i < n; i++) { sumM[i] += r.m[i]; sumF[i] += r.f[i]; }
+  }
+  S.data.regions[MULTI_CODE] = {
+    name: `${S.selection.size}개 지역 합산`,
+    m: sumM, f: sumF
+  };
+  delete _kpiCache[MULTI_CODE];
+  delete _normVecCache[MULTI_CODE];
+}
+
+function toggleMultiView() {
+  const btn = document.getElementById('multi-apply');
+  if (S.multiViewActive) {
+    S.multiViewActive = false;
+    btn.classList.remove('active');
+    btn.textContent = '합산 결과 보기';
+    const restore = _prevSelectedBeforeMulti || '00';
+    _prevSelectedBeforeMulti = null;
+    selectRegion(restore);
+    if (adk) renderMap();
+  } else {
+    if (S.selection.size === 0) return;
+    buildAggregateRegion();
+    _prevSelectedBeforeMulti = S.selected;
+    S.multiViewActive = true;
+    btn.classList.add('active');
+    btn.textContent = '단일 뷰로 복귀';
+    selectRegion(MULTI_CODE);
+    if (adk) renderMap();
+  }
+}
+
 // ===== NAVIGATION =====
 let _navigating = false;
 function navigateToRegion(code) {
@@ -946,11 +1155,21 @@ function navigateToRegion(code) {
 
 // ===== HELPERS =====
 function getRegionName(code) {
+  if (code === MULTI_CODE) return S.data?.regions[MULTI_CODE]?.name || '선택 합산';
   if (!code || !S.data?.regions[code]) return '';
   return S.data.regions[code].name.trim();
 }
 
 function getRegionFullName(code) {
+  if (code === MULTI_CODE) {
+    const arr = [...S.selection];
+    const names = arr.slice(0, 3).map(c => {
+      const p = getParentName(c);
+      const n = getRegionName(c);
+      return p ? p + ' ' + n : n;
+    });
+    return names.join(', ') + (arr.length > 3 ? ` 외 ${arr.length - 3}개` : '');
+  }
   if (!code) return '';
   const parts = [];
   if (code.length >= 2) parts.push(getRegionName(code.slice(0, 2)));
@@ -1199,7 +1418,7 @@ async function renderMap() {
     style(f) {
       const code = getCodeFromFeature(f, mapLevel);
       const v = getMetricValue(code);
-      const isSelected = code === S.selected || S.selected?.startsWith(code);
+      const isSelected = code === S.selected || S.selected?.startsWith(code) || (S.multiViewActive && S.selection.has(code));
       const isNeighbor = (mapLevel === 'emd' && mapParent && f.properties.sggcd !== mapParent)
         || (mapLevel === 'sgg' && mapParent && f.properties.sidocd !== mapParent);
       return {
@@ -1445,6 +1664,7 @@ async function init() {
 
   document.getElementById('sel-sido').value = '00';
   selectRegion('00');
+  renderMultiChips();
 
   initMap();
 }

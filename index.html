@@ -278,9 +278,10 @@ body{font-family:'Gothic A1',sans-serif;background:var(--bg);color:var(--t1);min
     <div class="multi-quick">
       <button class="multi-quick-btn" onclick="bulkAddAllSido()">시도 전체</button>
       <button class="multi-quick-btn" onclick="bulkAddCurrentSggs()">현재 시도의 시군구</button>
+      <button class="multi-quick-btn" onclick="bulkAddCurrentEmds()">현재 시군구의 읍면동</button>
     </div>
     <div class="multi-search-wrap">
-      <input id="multi-search" type="text" placeholder="시도/시군구 검색 후 클릭..." oninput="onMultiSearchInput(this.value)" onfocus="onMultiSearchInput(this.value)" onblur="setTimeout(()=>{const d=document.getElementById('multi-search-results');if(d)d.style.display='none'},200)" autocomplete="off">
+      <input id="multi-search" type="text" placeholder="시도/시군구/읍면동 검색 후 클릭..." oninput="onMultiSearchInput(this.value)" onfocus="onMultiSearchInput(this.value)" onblur="setTimeout(()=>{const d=document.getElementById('multi-search-results');if(d)d.style.display='none'},200)" autocomplete="off">
       <div id="multi-search-results" class="multi-search-results"></div>
     </div>
     <div class="multi-header">
@@ -1035,6 +1036,12 @@ function buildMultiSearchPool() {
     const sidoName = S.regionTree.sido[info.parent]?.name.trim() || '';
     pool.push({ code, full: sidoName + ' ' + info.name.trim(), level: '시군구' });
   }
+  for (const [code, info] of Object.entries(S.regionTree.emd)) {
+    const sggInfo = S.regionTree.sgg[info.parent];
+    const sidoName = sggInfo ? (S.regionTree.sido[sggInfo.parent]?.name.trim() || '') : '';
+    const sggName = sggInfo?.name.trim() || '';
+    pool.push({ code, full: sidoName + ' ' + sggName + ' ' + info.name.trim(), level: '읍면동' });
+  }
   _multiSearchPool = pool;
 }
 
@@ -1081,6 +1088,26 @@ function bulkAddCurrentSggs() {
   } else {
     const ch = S.regionTree.sido[sidoVal]?.children || [];
     for (const c of ch) S.selection.add(c);
+  }
+  afterMultiSelectionChange();
+}
+
+function bulkAddCurrentEmds() {
+  const sggVal = document.getElementById('sel-sgg').value;
+  if (sggVal) {
+    const ch = S.regionTree.sgg[sggVal]?.children || [];
+    for (const c of ch) S.selection.add(c);
+  } else {
+    const sidoVal = document.getElementById('sel-sido').value;
+    if (sidoVal && sidoVal !== '00') {
+      const sggs = S.regionTree.sido[sidoVal]?.children || [];
+      for (const s of sggs) {
+        const ch = S.regionTree.sgg[s]?.children || [];
+        for (const c of ch) S.selection.add(c);
+      }
+    } else {
+      for (const c of Object.keys(S.regionTree.emd)) S.selection.add(c);
+    }
   }
   afterMultiSelectionChange();
 }

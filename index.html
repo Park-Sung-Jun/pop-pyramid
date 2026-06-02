@@ -333,6 +333,7 @@ body{font-family:'Gothic A1',sans-serif;background:var(--bg);color:var(--t1);min
           <div class="control-presets" style="margin:0">
             <button class="preset-btn" data-maplvl="sido" onclick="setMapViewLevel('sido')">시도</button>
             <button class="preset-btn active" data-maplvl="sgg" onclick="setMapViewLevel('sgg')">시군구</button>
+            <button class="preset-btn" data-maplvl="emd" onclick="setMapViewLevel('emd')">읍면동</button>
           </div>
           <select id="map-metric" onchange="changeMapMetric(this.value)">
             <option value="pop">총인구</option>
@@ -1660,6 +1661,18 @@ function changeMapMetric(val) { mapMetric = val; renderMap(); }
 function changePalette(val) { mapPalette = val; renderMap(); }
 function changeClassify(val) { mapClassify = val; renderMap(); }
 function setMapViewLevel(lvl) {
+  if (lvl === 'emd') {
+    let sgg = null;
+    if (S.selected) {
+      if (S.selected.length === 5) sgg = S.selected;
+      else if (S.selected.length === 10) sgg = S.selected.slice(0, 5);
+    }
+    if (!sgg) {
+      alert('읍면동 보기는 시군구를 먼저 선택해야 합니다.');
+      return;
+    }
+    mapParent = sgg;
+  }
   document.querySelectorAll('[data-maplvl]').forEach(b => b.classList.toggle('active', b.dataset.maplvl === lvl));
   mapLevel = lvl;
   if (lvl === 'sido') mapParent = null;

@@ -3,10 +3,16 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
+<!-- Defense-in-depth CSP. GitHub Pages cannot set response headers, so this meta tag is the only available mechanism.
+     'unsafe-inline'/'unsafe-eval' are required by the inline app script and the esm.sh module loader; the value of this
+     policy is restricting object/base-uri and enumerating allowed script/style origins. Validate on a preview deploy before relying on it. -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; base-uri 'self'; object-src 'none'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' https://unpkg.com https://esm.sh; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://unpkg.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: blob: https:; connect-src 'self' https:; worker-src 'self' blob:">
+<meta name="referrer" content="strict-origin-when-cross-origin">
 <title>인구피라미드 탐색기</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Black+Han+Sans&family=Gothic+A1:wght@400;600;800&family=IBM+Plex+Mono:wght@400;600&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha384-sHL9NAb7lN7rfvG5lfHpm643Xkcjzp4jFvuavGOndn6pjVqS6ny56CAt3nsEVT4H" crossorigin="anonymous">
 <style>
 :root {
   --male:#4A90D9;--female:#E8597C;
@@ -14,11 +20,13 @@
   --sidebar:#1B2838;--sidebar-hover:#243447;
   --bg:#F0F4F8;--surface:#fff;--border:#E2E8F0;
   --accent:#3498DB;--accent-dark:#2980B9;
-  --t1:#1A202C;--t2:#4A5568;--t3:#718096;--t4:#A0AEC0;
+  --t1:#1A202C;--t2:#4A5568;--t3:#5A6E82;--t4:#A0AEC0;
   --radius:10px;--shadow:0 2px 12px rgba(0,0,0,.06);
 }
 *{margin:0;padding:0;box-sizing:border-box}
-body{font-family:'Gothic A1',sans-serif;background:var(--bg);color:var(--t1);min-height:100vh;display:flex}
+body{font-family:'Gothic A1','Malgun Gothic','Apple SD Gothic Neo',sans-serif;background:var(--bg);color:var(--t1);min-height:100vh;display:flex}
+/* Keyboard focus visibility (mouse clicks stay outline-free via :focus-visible) */
+a:focus-visible,button:focus-visible,select:focus-visible,input:focus-visible,[tabindex]:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:3px}
 .mono{font-family:'IBM Plex Mono',monospace}
 .logo-font{font-family:'Black Han Sans',sans-serif}
 
@@ -107,14 +115,14 @@ body{font-family:'Gothic A1',sans-serif;background:var(--bg);color:var(--t1);min
 .pyramid-female-wrap{flex:1;display:flex;justify-content:flex-start;position:relative;height:100%}
 .pyramid-bar{height:100%;border-radius:0;transition:width .3s ease;position:relative;z-index:1}
 .pyramid-bar.male{background:var(--male)}
-.pyramid-bar.female{background:var(--female)}
+.pyramid-bar.female{background-color:var(--female);background-image:repeating-linear-gradient(45deg,rgba(255,255,255,.28) 0 1px,transparent 1px 4px)}
 .pyramid-outline{position:absolute;height:100%;border:1.5px solid;border-radius:0;top:0;z-index:3;opacity:.85}
 .pyramid-outline.male{border-color:#2c3e50;right:0}
 .pyramid-outline.female{border-color:#2c3e50;left:0}
 .pyramid-axis{display:flex;justify-content:space-between;padding:4px 0;margin-top:4px}
 .pyramid-axis-male,.pyramid-axis-female{flex:1;display:flex;font-size:.6rem;color:var(--t4)}
-.pyramid-axis-male{justify-content:flex-end;padding-right:4px}
-.pyramid-axis-female{padding-left:4px}
+.pyramid-axis-male{justify-content:space-between;padding-right:4px}
+.pyramid-axis-female{justify-content:space-between;padding-left:4px}
 .pyramid-axis-male span,.pyramid-axis-female span{padding:0 2px}
 .pyramid-axis-center{width:52px;text-align:center;font-size:.6rem;color:var(--t4)}
 .pyramid-row:hover .pyramid-bar{filter:brightness(1.1)}
@@ -171,11 +179,15 @@ body{font-family:'Gothic A1',sans-serif;background:var(--bg);color:var(--t1);min
 .sm-female-wrap{flex:1;display:flex;justify-content:flex-start}
 .sm-bar{height:100%;border-radius:.5px}
 .sm-bar.male{background:var(--male)}
-.sm-bar.female{background:var(--female)}
+.sm-bar.female{background-color:var(--female);background-image:repeating-linear-gradient(45deg,rgba(255,255,255,.3) 0 .5px,transparent .5px 2px)}
 .sm-kpi-row{display:flex;gap:4px;margin-top:6px;font-size:.6rem}
 .sm-kpi{flex:1;text-align:center;padding:3px 0;border-radius:4px;background:var(--bg)}
 .sm-kpi .v{font-weight:700;display:block}
 .sm-kpi .l{color:var(--t4);font-size:.5rem}
+.sm-head{display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:8px;margin-bottom:12px}
+.sm-sort{display:flex;gap:4px;flex-wrap:wrap}
+.sm-sort-btn{padding:4px 11px;font-size:.72rem;font-weight:600;border:1px solid var(--border);border-radius:14px;background:var(--surface);color:var(--t3);cursor:pointer;font-family:inherit;transition:all .15s}
+.sm-sort-btn.active{background:var(--accent);color:#fff;border-color:var(--accent)}
 
 /* Loading */
 .loading{display:flex;align-items:center;justify-content:center;height:200px;color:var(--t3);font-size:.85rem}
@@ -197,11 +209,19 @@ body{font-family:'Gothic A1',sans-serif;background:var(--bg);color:var(--t1);min
 @media(max-width:768px){
   .sidebar{position:fixed;left:-280px;width:280px;transition:left .3s}
   .sidebar.open{left:0}
-  .main{margin-left:0}
+  .main{margin-left:0;padding-top:60px}
   .trio-grid{grid-template-columns:1fr}
   .trio-grid .trio-panel:first-child{grid-column:auto}
   .sim-grid{grid-template-columns:1fr}
+  .kpi-row{grid-template-columns:1fr 1fr;gap:10px}
+  .map-header{flex-direction:column;align-items:stretch;gap:8px}
+  .map-controls{flex-direction:column;align-items:stretch}
+  .map-controls .control-presets{justify-content:center}
   .mobile-toggle{display:flex}
+}
+@media(max-width:480px){
+  .kpi-row{grid-template-columns:1fr}
+  .kpi-value{font-size:1.4rem}
 }
 .mobile-toggle{display:none;position:fixed;top:12px;left:12px;z-index:200;width:36px;height:36px;border-radius:8px;background:var(--sidebar);color:#fff;border:none;cursor:pointer;align-items:center;justify-content:center;font-size:1.2rem}
 
@@ -292,60 +312,60 @@ body{font-family:'Gothic A1',sans-serif;background:var(--bg);color:var(--t1);min
 </head>
 <body>
 
-<button class="mobile-toggle" onclick="document.querySelector('.sidebar').classList.toggle('open')">☰</button>
+<button id="mobile-toggle" type="button" class="mobile-toggle" aria-label="메뉴 열기/닫기" aria-controls="sidebar" aria-expanded="false">☰</button>
 
-<aside class="sidebar">
+<aside id="sidebar" class="sidebar" aria-label="지역 선택 및 필터">
   <h1><span class="icon">📊</span> 인구피라미드</h1>
 
   <div class="sidebar-section">
     <h3>지역 선택</h3>
     <div class="region-picker">
-      <input id="region-search" type="text" placeholder="🔍 시도 · 시군구 · 읍면동 검색..." oninput="onRegionSearch(this.value)" onfocus="onRegionSearch(this.value)" onkeydown="onRegionSearchKey(event)" onblur="setTimeout(closeRegionResults,200)" autocomplete="off">
-      <div id="region-search-results" class="region-picker-results"></div>
+      <input id="region-search" type="text" placeholder="🔍 시도 · 시군구 · 읍면동 검색..." aria-label="지역 검색 (시도·시군구·읍면동)" role="combobox" aria-expanded="false" aria-controls="region-search-results" aria-autocomplete="list" autocomplete="off">
+      <div id="region-search-results" class="region-picker-results" role="listbox" aria-label="지역 검색 결과"></div>
     </div>
-    <div id="breadcrumb" class="breadcrumb"></div>
+    <div id="breadcrumb" class="breadcrumb" aria-live="polite"></div>
     <details class="region-dropdowns">
       <summary>단계별 선택</summary>
-      <select id="sel-sido"><option value="">시도 선택...</option></select>
+      <select id="sel-sido" aria-label="시도 선택"><option value="">시도 선택...</option></select>
       <div class="hint" id="hint-sgg" style="display:none">시도를 먼저 선택하세요</div>
-      <select id="sel-sgg" disabled><option value="">시군구 선택...</option></select>
+      <select id="sel-sgg" aria-label="시군구 선택" disabled><option value="">시군구 선택...</option></select>
       <div class="hint" id="hint-emd" style="display:none">시군구를 먼저 선택하세요</div>
-      <select id="sel-emd" disabled><option value="">읍면동 선택...</option></select>
+      <select id="sel-emd" aria-label="읍면동 선택" disabled><option value="">읍면동 선택...</option></select>
     </details>
   </div>
 
   <div class="sidebar-section">
     <h3>다중 선택 / 합산</h3>
     <div class="multi-quick">
-      <button class="multi-quick-btn" onclick="bulkAddAllSido()">시도 전체</button>
-      <button class="multi-quick-btn" onclick="bulkAddCurrentSggs()">현재 시도의 시군구</button>
-      <button class="multi-quick-btn" onclick="bulkAddCurrentEmds()">현재 시군구의 읍면동</button>
+      <button type="button" class="multi-quick-btn" data-bulk="sido">시도 전체</button>
+      <button type="button" class="multi-quick-btn" data-bulk="sgg">현재 시도의 시군구</button>
+      <button type="button" class="multi-quick-btn" data-bulk="emd">현재 시군구의 읍면동</button>
     </div>
     <div class="multi-search-wrap">
-      <input id="multi-search" type="text" placeholder="시도/시군구/읍면동 검색 후 클릭..." oninput="onMultiSearchInput(this.value)" onfocus="onMultiSearchInput(this.value)" onblur="setTimeout(()=>{const d=document.getElementById('multi-search-results');if(d)d.style.display='none'},200)" autocomplete="off">
-      <div id="multi-search-results" class="multi-search-results"></div>
+      <input id="multi-search" type="text" placeholder="시도/시군구/읍면동 검색 후 클릭..." aria-label="다중 선택용 지역 검색" role="combobox" aria-expanded="false" aria-controls="multi-search-results" aria-autocomplete="list" autocomplete="off">
+      <div id="multi-search-results" class="multi-search-results" role="listbox" aria-label="다중 선택 검색 결과"></div>
     </div>
     <div class="multi-header">
       <span>선택됨: <span id="multi-count">0</span>개</span>
-      <button class="clear" onclick="clearMultiSelection()">전체 해제</button>
+      <button type="button" class="clear" id="multi-clear">전체 해제</button>
     </div>
-    <div id="multi-chips" class="multi-chips"><div class="multi-empty">검색 또는 일괄 추가로 시작</div></div>
-    <button id="multi-apply" class="multi-apply-btn" onclick="toggleMultiView()" disabled>합산 결과 보기</button>
+    <div id="multi-chips" class="multi-chips" role="list" aria-label="선택된 지역"><div class="multi-empty">검색 또는 일괄 추가로 시작</div></div>
+    <button id="multi-apply" type="button" class="multi-apply-btn" disabled>합산 결과 보기</button>
   </div>
 
   <div class="sidebar-section">
     <h3>대조군 (비교 기준)</h3>
-    <div class="control-presets">
-      <button class="preset-btn active" data-control="nation" onclick="setControl('nation')">전국</button>
-      <button class="preset-btn" data-control="sido" onclick="setControl('sido')">시도</button>
-      <button class="preset-btn" data-control="sgg" onclick="setControl('sgg')">시군구</button>
+    <div class="control-presets" role="group" aria-label="대조군 단위 선택">
+      <button type="button" class="preset-btn active" data-control="nation">전국</button>
+      <button type="button" class="preset-btn" data-control="sido">시도</button>
+      <button type="button" class="preset-btn" data-control="sgg">시군구</button>
     </div>
     <div id="ctrl-sido-wrap" style="display:none;margin-top:8px">
-      <select id="ctrl-sido"></select>
+      <select id="ctrl-sido" aria-label="대조군 시도 선택"></select>
     </div>
     <div id="ctrl-sgg-wrap" style="display:none;margin-top:8px">
-      <select id="ctrl-sgg-sido"></select>
-      <select id="ctrl-sgg"></select>
+      <select id="ctrl-sgg-sido" aria-label="대조군 시도 선택"></select>
+      <select id="ctrl-sgg" aria-label="대조군 시군구 선택"></select>
     </div>
     <div id="ctrl-label" style="margin-top:8px;font-size:.72rem;color:var(--t4)">대조군: 전국</div>
   </div>
@@ -371,36 +391,36 @@ body{font-family:'Gothic A1',sans-serif;background:var(--bg);color:var(--t1);min
           <div class="panel-title" id="map-title">전국 지도</div>
           <div class="panel-subtitle" id="map-subtitle">시도 단위 | 클릭하여 드릴다운</div>
         </div>
-        <div class="map-controls" style="flex-wrap:wrap">
-          <div class="control-presets" style="margin:0">
-            <button class="preset-btn" data-maplvl="sido" onclick="setMapViewLevel('sido')">시도</button>
-            <button class="preset-btn active" data-maplvl="sgg" onclick="setMapViewLevel('sgg')">시군구</button>
-            <button class="preset-btn" data-maplvl="emd" onclick="setMapViewLevel('emd')">읍면동</button>
+        <div class="map-controls" style="flex-wrap:wrap" role="group" aria-label="지도 표시 옵션">
+          <div class="control-presets" style="margin:0" role="group" aria-label="지도 행정 단위">
+            <button type="button" class="preset-btn" data-maplvl="sido">시도</button>
+            <button type="button" class="preset-btn active" data-maplvl="sgg">시군구</button>
+            <button type="button" class="preset-btn" data-maplvl="emd">읍면동</button>
           </div>
-          <select id="map-metric" onchange="changeMapMetric(this.value)">
+          <select id="map-metric" aria-label="지도 지표 선택" data-mapchange="metric">
             <option value="pop">총인구</option>
             <option value="aging">고령화지수</option>
             <option value="young">유소년비율</option>
             <option value="working">생산가능인구</option>
           </select>
-          <select id="map-palette" onchange="changePalette(this.value)">
+          <select id="map-palette" aria-label="지도 색상 팔레트" data-mapchange="palette">
             <option value="gray-red">그레이→레드</option>
             <option value="gray-orange">그레이→오렌지</option>
             <option value="gray-blue">그레이→블루</option>
             <option value="hot">Hot</option>
             <option value="cool">Cool</option>
           </select>
-          <select id="map-classify" onchange="changeClassify(this.value)">
+          <select id="map-classify" aria-label="지도 분류 방식" data-mapchange="classify">
             <option value="quantile">균등분위</option>
             <option value="equal">동간격</option>
             <option value="stddev">표준편차</option>
           </select>
-          <select id="map-basemap" onchange="changeBasemap(this.value)">
+          <select id="map-basemap" aria-label="지도 배경 스타일" data-mapchange="basemap">
             <option value="gray">그레이</option>
             <option value="dark">다크</option>
           </select>
-          <button id="map-back" class="map-back-btn" style="display:none" onclick="mapDrillUp()">← 상위로</button>
-          <button class="map-back-btn" onclick="toggleMapFullscreen()" id="map-fullscreen-btn" title="전체화면">⛶ 전체화면</button>
+          <button type="button" id="map-back" class="map-back-btn" style="display:none" aria-label="상위 지역으로">← 상위로</button>
+          <button type="button" class="map-back-btn" id="map-fullscreen-btn" title="전체화면" aria-label="지도 전체화면 전환">⛶ 전체화면</button>
         </div>
       </div>
       <div id="map"></div>
@@ -415,12 +435,12 @@ body{font-family:'Gothic A1',sans-serif;background:var(--bg);color:var(--t1);min
           <div class="panel-subtitle" id="pyramid-subtitle">지역을 선택하세요</div>
         </div>
         <div class="pyramid-legend">
-          <span><span class="dot" style="background:var(--male)"></span>남자</span>
-          <span><span class="dot" style="background:var(--female)"></span>여자</span>
-          <span><span class="dot" style="border:1.5px solid #2c3e50;background:none"></span>대조군</span>
+          <span><span class="dot" style="background:var(--male)" aria-hidden="true"></span>남자</span>
+          <span><span class="dot" style="background:var(--female)" aria-hidden="true"></span>여자</span>
+          <span><span class="dot" style="border:1.5px solid #2c3e50;background:none" aria-hidden="true"></span>대조군</span>
         </div>
       </div>
-      <div id="pyramid-chart" class="pyramid-chart"></div>
+      <div id="pyramid-chart" class="pyramid-chart" role="img" aria-label="인구 피라미드 차트"></div>
       <div id="pyramid-axis" class="pyramid-axis"></div>
       <div id="pyramid-tooltip" class="pyramid-tooltip"></div>
     </div>
@@ -452,25 +472,35 @@ body{font-family:'Gothic A1',sans-serif;background:var(--bg);color:var(--t1);min
   </div>
 
   <div class="panel" style="margin-bottom:24px">
-    <div class="panel-title" id="sm-title">하위 행정구역</div>
-    <div class="panel-subtitle" id="sm-subtitle">클릭하여 해당 지역으로 이동</div>
+    <div class="sm-head">
+      <div>
+        <div class="panel-title" id="sm-title">하위 행정구역</div>
+        <div class="panel-subtitle" id="sm-subtitle">클릭하여 해당 지역으로 이동</div>
+      </div>
+      <div class="sm-sort" role="group" aria-label="하위 지역 정렬 기준">
+        <button type="button" class="sm-sort-btn active" data-smsort="name">이름순</button>
+        <button type="button" class="sm-sort-btn" data-smsort="pop">인구순</button>
+        <button type="button" class="sm-sort-btn" data-smsort="aging">고령화순</button>
+        <button type="button" class="sm-sort-btn" data-smsort="young">유소년순</button>
+      </div>
+    </div>
     <div id="small-multiples" class="small-multiples"><div class="loading">데이터 로딩 중</div></div>
   </div>
 
   <div id="rank-panel">
-    <div class="rank-controls">
-      <button class="rank-metric-btn active" data-rmetric="pop" onclick="setRankMetric(this,'pop')">인구수</button>
-      <button class="rank-metric-btn" data-rmetric="aging" onclick="setRankMetric(this,'aging')">고령화지수</button>
-      <button class="rank-metric-btn" data-rmetric="young" onclick="setRankMetric(this,'young')">유소년비율</button>
-      <button class="rank-metric-btn" data-rmetric="working" onclick="setRankMetric(this,'working')">생산가능인구</button>
+    <div class="rank-controls" role="group" aria-label="순위 지표 선택">
+      <button type="button" class="rank-metric-btn active" data-rmetric="pop">인구수</button>
+      <button type="button" class="rank-metric-btn" data-rmetric="aging">고령화지수</button>
+      <button type="button" class="rank-metric-btn" data-rmetric="young">유소년비율</button>
+      <button type="button" class="rank-metric-btn" data-rmetric="working">생산가능인구</button>
     </div>
     <div class="rank-dual-grid">
       <div class="panel rank-card">
         <div class="rank-card-header">
           <div class="panel-title">시도 순위</div>
           <div class="rank-order-toggle">
-            <button class="rank-order-btn active" data-level="sido" data-order="desc" onclick="setRankOrder('sido','desc',this)">상위</button>
-            <button class="rank-order-btn" data-level="sido" data-order="asc" onclick="setRankOrder('sido','asc',this)">하위</button>
+            <button type="button" class="rank-order-btn active" data-level="sido" data-order="desc">상위</button>
+            <button type="button" class="rank-order-btn" data-level="sido" data-order="asc">하위</button>
           </div>
         </div>
         <div class="rank-scroll">
@@ -481,8 +511,8 @@ body{font-family:'Gothic A1',sans-serif;background:var(--bg);color:var(--t1);min
         <div class="rank-card-header">
           <div class="panel-title">시군구 순위</div>
           <div class="rank-order-toggle">
-            <button class="rank-order-btn active" data-level="sgg" data-order="desc" onclick="setRankOrder('sgg','desc',this)">상위</button>
-            <button class="rank-order-btn" data-level="sgg" data-order="asc" onclick="setRankOrder('sgg','asc',this)">하위</button>
+            <button type="button" class="rank-order-btn active" data-level="sgg" data-order="desc">상위</button>
+            <button type="button" class="rank-order-btn" data-level="sgg" data-order="asc">하위</button>
           </div>
         </div>
         <div class="rank-scroll">
@@ -493,7 +523,7 @@ body{font-family:'Gothic A1',sans-serif;background:var(--bg);color:var(--t1);min
   </div>
 </main>
 
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha384-cxOPjt7s7Iz04uaHJceBmS+qpjv2JkIHNVcuOrM+YHwZOmJGBXI00mdUXEq65HTH" crossorigin="anonymous"></script>
 <script>
 // ===== STATE =====
 const S = {
@@ -503,7 +533,9 @@ const S = {
   control: '00',     // control group code
   controlMode: 'nation',
   selection: new Set(),  // multi-select codes
-  multiViewActive: false
+  multiViewActive: false,
+  _previewing: null,     // region code being hover-previewed (map)
+  _previewBackup: null   // selected code to restore after preview
 };
 const MULTI_CODE = '__MULTI__';
 let _prevSelectedBeforeMulti = null;
@@ -512,7 +544,13 @@ let _multiSearchPool = null;
 // ===== DATA LOADING =====
 async function loadData() {
   const resp = await fetch('data/pop_202512.json');
-  S.data = await resp.json();
+  if (!resp.ok) throw new Error(`데이터 로드 실패: HTTP ${resp.status}`);
+  const data = await resp.json();
+  // Light schema guard so malformed data fails with a clear message instead of a cryptic render crash.
+  if (!data || typeof data !== 'object' || typeof data.regions !== 'object' || !data.meta || !Array.isArray(data.meta.bands)) {
+    throw new Error('데이터 형식이 올바르지 않습니다 (regions / meta.bands 누락)');
+  }
+  S.data = data;
   buildRegionTree();
 }
 
@@ -807,12 +845,20 @@ function renderPyramid() {
   const maxPct = Math.max(...sp.m, ...sp.f, ...(cp ? cp.m : [0]), ...(cp ? cp.f : [0]));
   const scale = maxPct > 0 ? 100 / maxPct : 1;
 
+  // 축 눈금(%) — 바깥쪽 = 최대 비율, 중앙 = 0
+  const axisEl = document.getElementById('pyramid-axis');
+  if (axisEl) {
+    const mx = maxPct.toFixed(1) + '%';
+    axisEl.innerHTML = `<span class="pyramid-axis-male"><span>${mx}</span><span>0</span></span>` +
+      `<span class="pyramid-axis-center">연령</span>` +
+      `<span class="pyramid-axis-female"><span>0</span><span>${mx}</span></span>`;
+  }
+
   // In-place 업데이트: 행을 한 번만 생성하고 width만 갱신 → hover preview 시 부드러운 transition + DOM 재생성 비용 제거
   if (chart.childElementCount !== bands.length || chart.dataset.hasOutline !== (cp ? '1' : '0')) {
     let html = '';
     for (let i = bands.length - 1; i >= 0; i--) {
-      html += `<div class="pyramid-row"
-        onmouseenter="showTip(event,${i})" onmouseleave="hideTip()">
+      html += `<div class="pyramid-row" data-idx="${i}">
         <div class="pyramid-male-wrap">
           ${cp ? `<div class="pyramid-outline male" style="width:0"></div>` : ''}
           <div class="pyramid-bar male" style="width:0"></div>
@@ -855,7 +901,7 @@ function showTip(e, idx) {
   const band = S.data.meta.bands[idx];
   const m = r.m[idx].toLocaleString();
   const f = r.f[idx].toLocaleString();
-  tip.innerHTML = `<strong>${band}세</strong><br>남: ${m}명 | 여: ${f}명`;
+  tip.innerHTML = `<strong>${esc(band)}세</strong><br>남: ${m}명 | 여: ${f}명`;
   tip.style.display = 'block';
   tip.style.left = e.pageX + 12 + 'px';
   tip.style.top = e.pageY - 30 + 'px';
@@ -878,7 +924,7 @@ function showLiftTip(e, idx) {
   if (!l) return;
   const tip = _liftTipEl();
   const sign = l.lift >= 0 ? '+' : '';
-  tip.innerHTML = `<strong>${l.band}세</strong><br>
+  tip.innerHTML = `<strong>${esc(l.band)}세</strong><br>
     Lift: <b>${sign}${l.lift.toFixed(1)}%</b><br>
     선택: ${l.selPct.toFixed(2)}% · 대조: ${l.ctrlPct.toFixed(2)}%`;
   tip.style.display = 'block';
@@ -911,9 +957,8 @@ function renderLift() {
   if (rows.length !== orderIdx.length) {
     let html = '';
     for (const i of orderIdx) {
-      html += `<div class="lift-row" data-idx="${i}"
-        onmouseenter="showLiftTip(event,${i})" onmousemove="moveLiftTip(event)" onmouseleave="hideLiftTip()">
-        <div class="lift-age">${bands[i]}</div>
+      html += `<div class="lift-row" data-idx="${i}">
+        <div class="lift-age">${esc(bands[i])}</div>
         <div class="lift-bar-wrap">
           <div class="lift-center"></div>
           <div class="lift-bar"></div>
@@ -951,9 +996,9 @@ function renderLift() {
     <div class="lift-summary-row"><span class="label">생산가능인구</span><span class="value">${kpi.workingRatio}%</span></div>
     <div style="margin-top:10px;font-size:.7rem;color:var(--t3)">
       <div style="font-weight:700;margin-bottom:4px;color:var(--lift-pos)">Lift 상위 Top 3</div>
-      ${top3pos.map(l => `<div>${l.band}세: +${l.lift.toFixed(1)}%</div>`).join('')}
+      ${top3pos.map(l => `<div>${esc(l.band)}세: +${l.lift.toFixed(1)}%</div>`).join('')}
       <div style="font-weight:700;margin:8px 0 4px;color:var(--lift-neg)">Lift 하위 Top 3</div>
-      ${top3neg.map(l => `<div>${l.band}세: ${l.lift.toFixed(1)}%</div>`).join('')}
+      ${top3neg.map(l => `<div>${esc(l.band)}세: ${l.lift.toFixed(1)}%</div>`).join('')}
     </div>`;
 }
 
@@ -989,7 +1034,7 @@ function renderSimilar() {
       const parentLine = parent ? `${parent} · ${popStr}` : popStr;
       const rankCls = idx === 0 ? 'gold' : idx === 1 ? 'silver' : idx === 2 ? 'bronze' : 'normal';
       const miniPyramid = renderMiniPyramid(item.code);
-      return `<div class="sim-item" onclick="navigateToRegion('${esc(item.code)}')">
+      return `<div class="sim-item" role="button" tabindex="0" data-nav="${esc(item.code)}">
         <div class="sim-rank ${rankCls}">${idx + 1}</div>
         <div class="sim-info">
           <div class="sim-name">${esc(name)}</div>
@@ -1017,6 +1062,7 @@ function renderMiniPyramid(code) {
   return `<div class="sim-mini-pyramid"><div class="sim-mini-male">${maleHtml}</div><div class="sim-mini-female">${femaleHtml}</div></div>`;
 }
 
+let _smSort = 'name';
 function renderSmallMultiples() {
   const container = document.getElementById('small-multiples');
   let children = [];
@@ -1051,7 +1097,13 @@ function renderSmallMultiples() {
     return;
   }
 
-  container.innerHTML = children.sort().map(code => {
+  const _smSortFns = {
+    name: (a, b) => getRegionName(a).localeCompare(getRegionName(b), 'ko'),
+    pop: (a, b) => (calcKPI(b).total || 0) - (calcKPI(a).total || 0),
+    aging: (a, b) => (parseFloat(calcKPI(b).agingIndex) || 0) - (parseFloat(calcKPI(a).agingIndex) || 0),
+    young: (a, b) => (parseFloat(calcKPI(b).youngRatio) || 0) - (parseFloat(calcKPI(a).youngRatio) || 0)
+  };
+  container.innerHTML = [...children].sort(_smSortFns[_smSort] || _smSortFns.name).map(code => {
     const r = S.data.regions[code];
     if (!r) return '';
     const name = r.name.trim();
@@ -1075,7 +1127,7 @@ function renderSmallMultiples() {
     const borderColor = parseFloat(kpi.agingIndex) > 200 ? '#E74C3C44' :
                         parseFloat(kpi.agingIndex) < 50 ? '#2E86AB44' : 'var(--border)';
 
-    return `<div class="sm-card" style="border-color:${borderColor}" onclick="navigateToRegion('${esc(code)}')">
+    return `<div class="sm-card" role="button" tabindex="0" style="border-color:${borderColor}" data-nav="${esc(code)}">
       <div class="sm-card-title">${esc(name)}</div>
       <div class="sm-card-pop">${kpi.total ? kpi.total.toLocaleString() + '명' : ''}</div>
       <div class="sm-pyramid">${pyramidHtml}</div>
@@ -1132,7 +1184,7 @@ function _doMultiSearch(q) {
   const results = all.slice(0, CAP);
   let html = results.map(r => {
     const checked = S.selection.has(r.code) ? '✓' : '';
-    return `<div class="search-item" onmousedown="addFromMultiSearch('${esc(r.code)}')">
+    return `<div class="search-item" role="option" data-multiadd="${esc(r.code)}">
       <span class="search-level">${esc(r.level)}</span>
       <span class="search-name">${esc(r.full)}</span>
       <span class="search-check">${checked}</span>
@@ -1229,9 +1281,9 @@ function renderMultiChips() {
     const name = getRegionName(code);
     const parent = getParentName(code);
     const label = parent ? parent + ' ' + name : name;
-    return `<div class="multi-chip" title="${esc(label)}">
+    return `<div class="multi-chip" role="listitem" title="${esc(label)}">
       <span class="chip-name">${esc(label)}</span>
-      <button class="chip-x" onclick="removeFromMultiSelection('${esc(code)}')" title="해제">×</button>
+      <button type="button" class="chip-x" data-multiremove="${esc(code)}" aria-label="${esc(label)} 해제" title="해제">×</button>
     </div>`;
   }).join('');
 }
@@ -1326,10 +1378,10 @@ function _doRegionSearch(q) {
   const matches = all.slice(0, CAP);
   _rpHover = 0;
   let html = matches.map((r, i) => `
-    <div class="rp-item${i === 0 ? ' hover' : ''}" data-code="${esc(r.code)}" onmousedown="event.preventDefault();rpJump('${esc(r.code)}')">
+    <div class="rp-item${i === 0 ? ' hover' : ''}" role="option" data-code="${esc(r.code)}" data-rpjump="${esc(r.code)}">
       <span class="rp-level">${esc(r.level)}</span>
       <span class="rp-name">${esc(r.full)}</span>
-      <button class="rp-act" onmousedown="event.preventDefault();event.stopPropagation();rpAddToMulti('${esc(r.code)}')" title="다중 선택 합산에 추가">＋합산</button>
+      <button type="button" class="rp-act" data-rpadd="${esc(r.code)}" title="다중 선택 합산에 추가">＋합산</button>
     </div>
   `).join('');
   if (all.length > CAP) {
@@ -1403,8 +1455,8 @@ function renderBreadcrumb() {
     const isLast = i === parts.length - 1;
     const sep = i > 0 ? '<span class="bc-sep">▸</span>' : '';
     const cls = isLast ? 'bc-item current' : 'bc-item';
-    const onclick = isLast ? '' : ` onclick="navigateToRegion('${esc(p.code)}')"`;
-    return `${sep}<span class="${cls}"${onclick}>${esc(p.name)}</span>`;
+    const nav = isLast ? '' : ` role="button" tabindex="0" data-nav="${esc(p.code)}"`;
+    return `${sep}<span class="${cls}"${nav}>${esc(p.name)}</span>`;
   }).join('');
 }
 
@@ -1647,13 +1699,17 @@ async function initMap() {
   }).addTo(map);
 
   try {
-    adk = await import('https://esm.sh/admdongkor');
+    // Pinned version + timeout so a slow/unreachable CDN fails fast instead of hanging the map indefinitely.
+    const ADK_URL = 'https://esm.sh/admdongkor@0.2.0';
+    const timeout = (ms) => new Promise((_, rej) => setTimeout(() => rej(new Error('admdongkor 로드 시간 초과')), ms));
+    adk = await Promise.race([import(ADK_URL), timeout(15000)]);
     const vers = adk.versions(2025);
     adkVersion = vers[vers.length - 1] || '20250401';
     await renderMap();
   } catch (e) {
     console.error('admdongkor load failed:', e);
-    document.getElementById('map-subtitle').textContent = '지도 데이터 로드 실패';
+    const sub = document.getElementById('map-subtitle');
+    if (sub) sub.textContent = '지도 데이터 로드 실패 — 네트워크를 확인하거나 새로고침 해보세요';
   }
 
   let _expandTimer = null;
@@ -2013,7 +2069,7 @@ function changeBasemap(style) {
 let rankMetric = 'pop';
 const rankOrder = { sido: 'desc', sgg: 'desc' };
 
-function setRankMetric(btn, metric) {
+function setRankMetric(metric) {
   rankMetric = metric;
   document.querySelectorAll('.rank-metric-btn').forEach(b => b.classList.toggle('active', b.dataset.rmetric === metric));
   const metricLabels = { pop: '인구(명)', aging: '고령화지수', young: '유소년(%)', working: '생산가능(%)' };
@@ -2055,7 +2111,7 @@ function renderRankCard(level) {
     const fmt = rankMetric === 'pop' ? item.val.toLocaleString() : item.val.toFixed(1);
     const isSelected = item.code === S.selected;
     const bg = isSelected ? 'background:rgba(52,152,219,.08)' : '';
-    return `<tr style="${bg}" onclick="navigateToRegion('${esc(item.code)}')">
+    return `<tr style="${bg}" data-nav="${esc(item.code)}">
       <td class="rank-num">${i + 1}</td>
       <td><div class="rank-name">${esc(item.name)}</div><div class="rank-parent">${esc(item.parent)}</div></td>
       <td class="rank-val">${fmt}</td>
@@ -2086,8 +2142,133 @@ function toggleMapFullscreen() {
   setTimeout(() => map.invalidateSize(), 100);
 }
 
+// ===== EVENT WIRING (no inline handlers — keeps behavior identical while satisfying CSP/script-src) =====
+function setupEventListeners() {
+  const $ = id => document.getElementById(id);
+
+  // Sidebar toggle (mobile)
+  const mobileToggle = $('mobile-toggle');
+  const sidebar = $('sidebar');
+  if (mobileToggle && sidebar) {
+    mobileToggle.addEventListener('click', () => {
+      const open = sidebar.classList.toggle('open');
+      mobileToggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+    });
+  }
+
+  // Region search input
+  const regionSearch = $('region-search');
+  if (regionSearch) {
+    const syncExpanded = () => {
+      const dd = $('region-search-results');
+      regionSearch.setAttribute('aria-expanded', dd && dd.style.display !== 'none' ? 'true' : 'false');
+    };
+    regionSearch.addEventListener('input', e => { onRegionSearch(e.target.value); setTimeout(syncExpanded, 100); });
+    regionSearch.addEventListener('focus', e => { onRegionSearch(e.target.value); setTimeout(syncExpanded, 100); });
+    regionSearch.addEventListener('keydown', e => onRegionSearchKey(e));
+    regionSearch.addEventListener('blur', () => setTimeout(() => { closeRegionResults(); syncExpanded(); }, 200));
+  }
+
+  // Multi-select search input
+  const multiSearch = $('multi-search');
+  if (multiSearch) {
+    multiSearch.addEventListener('input', e => { onMultiSearchInput(e.target.value); });
+    multiSearch.addEventListener('focus', e => { onMultiSearchInput(e.target.value); });
+    multiSearch.addEventListener('blur', () => setTimeout(() => {
+      const d = $('multi-search-results'); if (d) d.style.display = 'none';
+      multiSearch.setAttribute('aria-expanded', 'false');
+    }, 200));
+  }
+
+  // Bulk-add buttons
+  document.querySelectorAll('[data-bulk]').forEach(btn => btn.addEventListener('click', () => {
+    const k = btn.dataset.bulk;
+    if (k === 'sido') bulkAddAllSido();
+    else if (k === 'sgg') bulkAddCurrentSggs();
+    else if (k === 'emd') bulkAddCurrentEmds();
+  }));
+  $('multi-clear')?.addEventListener('click', clearMultiSelection);
+  $('multi-apply')?.addEventListener('click', toggleMultiView);
+
+  // Control-group + map view-level presets
+  document.querySelectorAll('[data-control]').forEach(btn => btn.addEventListener('click', () => setControl(btn.dataset.control)));
+  document.querySelectorAll('[data-maplvl]').forEach(btn => btn.addEventListener('click', () => setMapViewLevel(btn.dataset.maplvl)));
+
+  // Map option selects
+  document.querySelectorAll('[data-mapchange]').forEach(sel => sel.addEventListener('change', () => {
+    const v = sel.value;
+    switch (sel.dataset.mapchange) {
+      case 'metric': changeMapMetric(v); break;
+      case 'palette': changePalette(v); break;
+      case 'classify': changeClassify(v); break;
+      case 'basemap': changeBasemap(v); break;
+    }
+  }));
+  $('map-back')?.addEventListener('click', mapDrillUp);
+  $('map-fullscreen-btn')?.addEventListener('click', toggleMapFullscreen);
+
+  // Ranking buttons
+  document.querySelectorAll('.rank-metric-btn').forEach(btn => btn.addEventListener('click', () => setRankMetric(btn.dataset.rmetric)));
+  document.querySelectorAll('.rank-order-btn').forEach(btn => btn.addEventListener('click', () => setRankOrder(btn.dataset.level, btn.dataset.order, btn)));
+  // 하위 행정구역(small-multiples) 정렬
+  document.querySelectorAll('[data-smsort]').forEach(btn => btn.addEventListener('click', () => {
+    _smSort = btn.dataset.smsort;
+    document.querySelectorAll('.sm-sort-btn').forEach(b => b.classList.toggle('active', b.dataset.smsort === _smSort));
+    renderSmallMultiples();
+  }));
+
+  // ----- Delegation for dynamically-generated content (containers persist across re-renders) -----
+  // mousedown fires before the search input's blur closes the dropdown
+  document.body.addEventListener('mousedown', e => {
+    const add = e.target.closest('[data-rpadd]');
+    if (add) { e.preventDefault(); e.stopPropagation(); rpAddToMulti(add.dataset.rpadd); return; }
+    const jump = e.target.closest('[data-rpjump]');
+    if (jump) { e.preventDefault(); rpJump(jump.dataset.rpjump); return; }
+    const ms = e.target.closest('[data-multiadd]');
+    if (ms) { addFromMultiSearch(ms.dataset.multiadd); return; }
+  });
+  document.body.addEventListener('click', e => {
+    const rm = e.target.closest('[data-multiremove]');
+    if (rm) { removeFromMultiSelection(rm.dataset.multiremove); return; }
+    const nav = e.target.closest('[data-nav]');
+    if (nav) { navigateToRegion(nav.dataset.nav); return; }
+  });
+  // Keyboard activation for focusable role=button cards (Enter / Space)
+  document.body.addEventListener('keydown', e => {
+    if (e.key !== 'Enter' && e.key !== ' ') return;
+    const nav = e.target.closest && e.target.closest('[data-nav]');
+    if (nav && e.target === nav) { e.preventDefault(); navigateToRegion(nav.dataset.nav); }
+  });
+
+  // Pyramid / Lift tooltip hover (delegated on stable containers)
+  const pyramidChart = $('pyramid-chart');
+  if (pyramidChart) {
+    pyramidChart.addEventListener('mouseover', e => {
+      const row = e.target.closest('.pyramid-row');
+      if (row && row.dataset.idx != null) showTip(e, +row.dataset.idx);
+    });
+    pyramidChart.addEventListener('mouseout', e => {
+      const row = e.target.closest('.pyramid-row');
+      if (row && !row.contains(e.relatedTarget)) hideTip();
+    });
+  }
+  const liftChart = $('lift-chart');
+  if (liftChart) {
+    liftChart.addEventListener('mouseover', e => {
+      const row = e.target.closest('.lift-row');
+      if (row && row.dataset.idx != null) showLiftTip(e, +row.dataset.idx);
+    });
+    liftChart.addEventListener('mousemove', e => { if (e.target.closest('.lift-row')) moveLiftTip(e); });
+    liftChart.addEventListener('mouseout', e => {
+      const row = e.target.closest('.lift-row');
+      if (row && !row.contains(e.relatedTarget)) hideLiftTip();
+    });
+  }
+}
+
 // ===== INIT =====
 async function init() {
+  setupEventListeners();
   await loadData();
   populateSido();
   initControlDropdowns();
@@ -2101,6 +2282,15 @@ async function init() {
 
 init().catch(e => {
   console.error('init failed:', e);
+  const main = document.querySelector('.main');
+  if (main && !document.getElementById('init-error-banner')) {
+    const banner = document.createElement('div');
+    banner.id = 'init-error-banner';
+    banner.setAttribute('role', 'alert');
+    banner.style.cssText = 'background:#FEECEC;border:1px solid #E74C3C;color:#9B2C2C;padding:14px 18px;border-radius:8px;margin-bottom:16px;font-size:.9rem;font-weight:600';
+    banner.textContent = '데이터를 불러오지 못했습니다: ' + (e && e.message ? e.message : '알 수 없는 오류') + ' — 페이지를 새로고침 해주세요.';
+    main.prepend(banner);
+  }
   const m = document.getElementById('map-subtitle');
   if (m) m.textContent = '초기화 실패 — 새로고침 해보세요';
 });

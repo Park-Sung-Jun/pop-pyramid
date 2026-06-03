@@ -115,14 +115,14 @@ a:focus-visible,button:focus-visible,select:focus-visible,input:focus-visible,[t
 .pyramid-female-wrap{flex:1;display:flex;justify-content:flex-start;position:relative;height:100%}
 .pyramid-bar{height:100%;border-radius:0;transition:width .3s ease;position:relative;z-index:1}
 .pyramid-bar.male{background:var(--male)}
-.pyramid-bar.female{background:var(--female)}
+.pyramid-bar.female{background-color:var(--female);background-image:repeating-linear-gradient(45deg,rgba(255,255,255,.28) 0 1px,transparent 1px 4px)}
 .pyramid-outline{position:absolute;height:100%;border:1.5px solid;border-radius:0;top:0;z-index:3;opacity:.85}
 .pyramid-outline.male{border-color:#2c3e50;right:0}
 .pyramid-outline.female{border-color:#2c3e50;left:0}
 .pyramid-axis{display:flex;justify-content:space-between;padding:4px 0;margin-top:4px}
 .pyramid-axis-male,.pyramid-axis-female{flex:1;display:flex;font-size:.6rem;color:var(--t4)}
-.pyramid-axis-male{justify-content:flex-end;padding-right:4px}
-.pyramid-axis-female{padding-left:4px}
+.pyramid-axis-male{justify-content:space-between;padding-right:4px}
+.pyramid-axis-female{justify-content:space-between;padding-left:4px}
 .pyramid-axis-male span,.pyramid-axis-female span{padding:0 2px}
 .pyramid-axis-center{width:52px;text-align:center;font-size:.6rem;color:var(--t4)}
 .pyramid-row:hover .pyramid-bar{filter:brightness(1.1)}
@@ -179,7 +179,7 @@ a:focus-visible,button:focus-visible,select:focus-visible,input:focus-visible,[t
 .sm-female-wrap{flex:1;display:flex;justify-content:flex-start}
 .sm-bar{height:100%;border-radius:.5px}
 .sm-bar.male{background:var(--male)}
-.sm-bar.female{background:var(--female)}
+.sm-bar.female{background-color:var(--female);background-image:repeating-linear-gradient(45deg,rgba(255,255,255,.3) 0 .5px,transparent .5px 2px)}
 .sm-kpi-row{display:flex;gap:4px;margin-top:6px;font-size:.6rem}
 .sm-kpi{flex:1;text-align:center;padding:3px 0;border-radius:4px;background:var(--bg)}
 .sm-kpi .v{font-weight:700;display:block}
@@ -830,6 +830,15 @@ function renderPyramid() {
   const bands = S.data.meta.bands;
   const maxPct = Math.max(...sp.m, ...sp.f, ...(cp ? cp.m : [0]), ...(cp ? cp.f : [0]));
   const scale = maxPct > 0 ? 100 / maxPct : 1;
+
+  // 축 눈금(%) — 바깥쪽 = 최대 비율, 중앙 = 0
+  const axisEl = document.getElementById('pyramid-axis');
+  if (axisEl) {
+    const mx = maxPct.toFixed(1) + '%';
+    axisEl.innerHTML = `<span class="pyramid-axis-male"><span>${mx}</span><span>0</span></span>` +
+      `<span class="pyramid-axis-center">연령</span>` +
+      `<span class="pyramid-axis-female"><span>0</span><span>${mx}</span></span>`;
+  }
 
   // In-place 업데이트: 행을 한 번만 생성하고 width만 갱신 → hover preview 시 부드러운 transition + DOM 재생성 비용 제거
   if (chart.childElementCount !== bands.length || chart.dataset.hasOutline !== (cp ? '1' : '0')) {

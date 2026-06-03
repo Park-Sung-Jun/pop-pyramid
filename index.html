@@ -122,14 +122,13 @@ body{font-family:'Gothic A1',sans-serif;background:var(--bg);color:var(--t1);min
 
 /* Lift Panel */
 .lift-chart{display:flex;flex-direction:column;gap:2px}
-.lift-row{display:flex;align-items:center;height:20px;gap:6px}
+.lift-row{display:flex;align-items:center;height:20px;gap:6px;cursor:pointer;transition:background .12s}
 .lift-age{width:40px;font-size:.6rem;color:var(--t3);text-align:right;flex-shrink:0}
 .lift-bar-wrap{flex:1;position:relative;height:100%;display:flex;align-items:center}
 .lift-center{position:absolute;left:50%;top:0;bottom:0;width:1px;background:var(--border);z-index:0}
 .lift-bar{height:14px;border-radius:2px;position:absolute;z-index:1;transition:width .4s cubic-bezier(.4,0,.2,1),left .4s cubic-bezier(.4,0,.2,1),filter .15s}
 .lift-bar.positive{background:var(--lift-pos)}
 .lift-bar.negative{background:var(--lift-neg)}
-.lift-row{cursor:pointer;transition:background .12s}
 .lift-row:hover{background:var(--bg);margin:0 -4px;padding:0 4px;border-radius:4px}
 .lift-row:hover .lift-bar{filter:brightness(1.15)}
 .lift-row:hover .lift-age,.lift-row:hover .lift-val{color:var(--t1);font-weight:600}
@@ -780,15 +779,7 @@ function renderAll() {
   if (mapLayer) {
     const allVals = mapLayer.getLayers().map(l => getMetricValue(getCodeFromFeature(l.feature, mapLevel)));
     const scale = getColorScale(allVals);
-    mapLayer.setStyle(f => {
-      const code = getCodeFromFeature(f, mapLevel);
-      const v = getMetricValue(code);
-      const anchor = S._previewBackup || S.selected;
-      const isExact = code === anchor;
-      const isSelected = isExact || anchor?.startsWith(code) || (S.multiViewActive && S.selection.has(code));
-      const isNeighbor = (mapLevel === 'emd' && mapParent && f.properties.sggcd !== mapParent);
-      return { fillColor: scale.getColor(v), fillOpacity: isNeighbor ? 0.7 : 0.95, color: isExact ? '#000' : (isSelected ? '#1A202C' : scale.getColor(v)), weight: isExact ? 4 : (isSelected ? 2.5 : 0.5), opacity: 1 };
-    });
+    mapLayer.setStyle(f => computeFeatureStyle(f, scale));
   }
 }
 
@@ -816,31 +807,46 @@ function renderPyramid() {
   const maxPct = Math.max(...sp.m, ...sp.f, ...(cp ? cp.m : [0]), ...(cp ? cp.f : [0]));
   const scale = maxPct > 0 ? 100 / maxPct : 1;
 
-  let html = '';
-  for (let i = bands.length - 1; i >= 0; i--) {
+  // In-place 업데이트: 행을 한 번만 생성하고 width만 갱신 → hover preview 시 부드러운 transition + DOM 재생성 비용 제거
+  if (chart.childElementCount !== bands.length || chart.dataset.hasOutline !== (cp ? '1' : '0')) {
+    let html = '';
+    for (let i = bands.length - 1; i >= 0; i--) {
+      html += `<div class="pyramid-row"
+        onmouseenter="showTip(event,${i})" onmouseleave="hideTip()">
+        <div class="pyramid-male-wrap">
+          ${cp ? `<div class="pyramid-outline male" style="width:0"></div>` : ''}
+          <div class="pyramid-bar male" style="width:0"></div>
+        </div>
+        <div class="pyramid-age">${esc(bands[i])}</div>
+        <div class="pyramid-female-wrap">
+          ${cp ? `<div class="pyramid-outline female" style="width:0"></div>` : ''}
+          <div class="pyramid-bar female" style="width:0"></div>
+        </div>
+      </div>`;
+    }
+    chart.innerHTML = html;
+    chart.dataset.hasOutline = cp ? '1' : '0';
+  }
+
+  const rows = chart.children;
+  let rowIdx = 0;
+  for (let i = bands.length - 1; i >= 0; i--, rowIdx++) {
+    const row = rows[rowIdx];
+    if (!row) continue;
+    const maleWrap = row.children[0];
+    const femaleWrap = row.children[2];
     const mw = sp.m[i] * scale;
     const fw = sp.f[i] * scale;
-    const cmw = cp ? cp.m[i] * scale : 0;
-    const cfw = cp ? cp.f[i] * scale : 0;
-    const mCount = S.data.regions[S.selected].m[i];
-    const fCount = S.data.regions[S.selected].f[i];
-
-    html += `<div class="pyramid-row" data-idx="${i}"
-      onmouseenter="showTip(event,${i})" onmouseleave="hideTip()">
-      <div class="pyramid-male-wrap">
-        ${cp ? `<div class="pyramid-outline male" style="width:${cmw}%"></div>` : ''}
-        <div class="pyramid-bar male" style="width:${mw}%"></div>
-      </div>
-      <div class="pyramid-age">${bands[i]}</div>
-      <div class="pyramid-female-wrap">
-        ${cp ? `<div class="pyramid-outline female" style="width:${cfw}%"></div>` : ''}
-        <div class="pyramid-bar female" style="width:${fw}%"></div>
-      </div>
-    </div>`;
+    if (cp) {
+      maleWrap.children[0].style.width = (cp.m[i] * scale) + '%';
+      maleWrap.children[1].style.width = mw + '%';
+      femaleWrap.children[0].style.width = (cp.f[i] * scale) + '%';
+      femaleWrap.children[1].style.width = fw + '%';
+    } else {
+      maleWrap.children[0].style.width = mw + '%';
+      femaleWrap.children[0].style.width = fw + '%';
+    }
   }
-  chart.innerHTML = html;
-
-  document.getElementById('pyramid-axis').innerHTML = '';
 }
 
 function showTip(e, idx) {
@@ -958,8 +964,15 @@ function renderSimilar() {
     { id: 'sim-emd', level: 'emd', label: '읍면동' }
   ];
 
+  // 선택 코드 길이에 맞지 않는 레벨(특히 EMD ~17k × cosine)은 건너뛰어 hover preview 시 블로킹 회피
+  const selLen = (S.selected || '').length;
   for (const { id, level } of levels) {
     const panel = document.getElementById(id);
+    // EMD 패널은 선택이 EMD(길이 10)인 경우에만 계산. 그 외엔 안내 메시지.
+    if (level === 'emd' && selLen !== 10) {
+      panel.innerHTML = '<div style="padding:20px;color:var(--t3);text-align:center;font-size:.78rem">읍면동을 선택하면 유사 동을 표시합니다</div>';
+      continue;
+    }
     const similar = findSimilar(S.selected, level);
 
     if (!similar.length) {
@@ -1078,30 +1091,38 @@ function renderSmallMultiples() {
 // ===== MULTI SELECTION =====
 function buildMultiSearchPool() {
   const pool = [];
+  const push = (code, full, level) => pool.push({ code, full, level, lower: full.toLowerCase() });
   for (const [code, info] of Object.entries(S.regionTree.sido)) {
-    pool.push({ code, full: info.name.trim(), level: '시도' });
+    push(code, info.name.trim(), '시도');
   }
   for (const [code, info] of Object.entries(S.regionTree.sgg)) {
     const sidoName = S.regionTree.sido[info.parent]?.name.trim() || '';
-    pool.push({ code, full: sidoName + ' ' + info.name.trim(), level: '시군구' });
+    push(code, sidoName + ' ' + info.name.trim(), '시군구');
   }
   for (const [code, info] of Object.entries(S.regionTree.emd)) {
     const sggInfo = S.regionTree.sgg[info.parent];
     const sidoName = sggInfo ? (S.regionTree.sido[sggInfo.parent]?.name.trim() || '') : '';
     const sggName = sggInfo?.name.trim() || '';
-    pool.push({ code, full: sidoName + ' ' + sggName + ' ' + info.name.trim(), level: '읍면동' });
+    push(code, sidoName + ' ' + sggName + ' ' + info.name.trim(), '읍면동');
   }
   _multiSearchPool = pool;
 }
 
+let _multiSearchTimer = null;
+
 function onMultiSearchInput(q) {
+  clearTimeout(_multiSearchTimer);
+  _multiSearchTimer = setTimeout(() => _doMultiSearch(q), 80);
+}
+
+function _doMultiSearch(q) {
   const dropdown = document.getElementById('multi-search-results');
   if (!dropdown) return;
   q = (q || '').trim();
   if (!q) { dropdown.style.display = 'none'; return; }
   if (!_multiSearchPool) buildMultiSearchPool();
   const ql = q.toLowerCase();
-  const all = _multiSearchPool.filter(x => x.full.toLowerCase().includes(ql));
+  const all = _multiSearchPool.filter(x => x.lower.includes(ql));
   if (!all.length) {
     dropdown.innerHTML = '<div class="search-empty">결과 없음</div>';
     dropdown.style.display = 'block';
@@ -1134,10 +1155,16 @@ function bulkAddAllSido() {
   afterMultiSelectionChange();
 }
 
+const MULTI_SELECTION_CAP = 1000;
 function bulkAddCurrentSggs() {
   const sidoVal = document.getElementById('sel-sido').value;
   if (!sidoVal || sidoVal === '00') {
-    for (const c of Object.keys(S.regionTree.sgg)) S.selection.add(c);
+    const all = Object.keys(S.regionTree.sgg);
+    if (all.length > MULTI_SELECTION_CAP && !confirm(`전국 시군구 ${all.length.toLocaleString()}개를 모두 추가하시겠습니까? UI가 무거워질 수 있습니다.`)) return;
+    for (const c of all) {
+      if (S.selection.size >= MULTI_SELECTION_CAP) break;
+      S.selection.add(c);
+    }
   } else {
     const ch = S.regionTree.sido[sidoVal]?.children || [];
     for (const c of ch) S.selection.add(c);
@@ -1428,10 +1455,8 @@ function setMapLoading(on) {
 }
 
 // ===== NAVIGATION =====
-let _navigating = false;
+// renderMap의 _renderMapToken으로 비동기 직렬화. 여기서는 동기 본문만 보호.
 function navigateToRegion(code) {
-  if (_navigating) return;
-  _navigating = true;
   const len = code.length;
   if (code === '00') {
     document.getElementById('sel-sido').value = '00';
@@ -1464,7 +1489,6 @@ function navigateToRegion(code) {
   else if (len === 5) { mapLevel = 'emd'; mapParent = code; }
   else if (len === 10) { mapLevel = 'emd'; mapParent = code.slice(0, 5); }
   if (adk) renderMap();
-  _navigating = false;
   window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
@@ -1579,8 +1603,8 @@ function _simplifyGeometry(geom, tol) {
   return geom;
 }
 
-function _computeSggNeighbors(sggFc) {
-  const bboxes = _sggBBoxCache;
+function _ensureSggBBoxes(sggFc) {
+  if (Object.keys(_sggBBoxCache).length > 0) return;
   for (const f of sggFc.features) {
     const code = f.properties.sggcd;
     let minLat = 90, maxLat = -90, minLng = 180, maxLng = -180;
@@ -1589,21 +1613,27 @@ function _computeSggNeighbors(sggFc) {
       for (const a of arr) walk(a);
     };
     walk(f.geometry.coordinates);
-    bboxes[code] = [minLat, maxLat, minLng, maxLng];
+    _sggBBoxCache[code] = [minLat, maxLat, minLng, maxLng];
   }
+}
+
+// 단일 SGG의 이웃 집합만 계산. 다른 SGG의 캐시는 건드리지 않음.
+function _computeNeighborsFor(code) {
+  if (_sggNeighborCache[code]) return _sggNeighborCache[code];
+  const bbox = _sggBBoxCache[code];
+  if (!bbox) return new Set([code]);
   const pad = 0.02;
-  for (const c1 in bboxes) {
-    const [aMinLat, aMaxLat, aMinLng, aMaxLng] = bboxes[c1];
-    const neighbors = new Set([c1]);
-    for (const c2 in bboxes) {
-      if (c1 === c2) continue;
-      const [bMinLat, bMaxLat, bMinLng, bMaxLng] = bboxes[c2];
-      if (aMinLat - pad <= bMaxLat && aMaxLat + pad >= bMinLat && aMinLng - pad <= bMaxLng && aMaxLng + pad >= bMinLng) {
-        neighbors.add(c2);
-      }
+  const [aMinLat, aMaxLat, aMinLng, aMaxLng] = bbox;
+  const neighbors = new Set([code]);
+  for (const c2 in _sggBBoxCache) {
+    if (c2 === code) continue;
+    const [bMinLat, bMaxLat, bMinLng, bMaxLng] = _sggBBoxCache[c2];
+    if (aMinLat - pad <= bMaxLat && aMaxLat + pad >= bMinLat && aMinLng - pad <= bMaxLng && aMaxLng + pad >= bMinLng) {
+      neighbors.add(c2);
     }
-    _sggNeighborCache[c1] = neighbors;
   }
+  _sggNeighborCache[code] = neighbors;
+  return neighbors;
 }
 
 async function initMap() {
@@ -1642,7 +1672,7 @@ async function expandEmdToView() {
   const sggCacheKey = `${adkVersion}_sgg`;
   let sggFc = mapGeoCache[sggCacheKey];
   if (!sggFc) { sggFc = await adk.get(adkVersion, 'sgg'); mapGeoCache[sggCacheKey] = sggFc; }
-  if (Object.keys(_sggBBoxCache).length === 0) _computeSggNeighbors(sggFc);
+  _ensureSggBBoxes(sggFc);
 
   const b = map.getBounds();
   const pad = 0.005;
@@ -1657,7 +1687,7 @@ async function expandEmdToView() {
     }
   }
 
-  const allowed = _sggNeighborCache[mapParent] || new Set([mapParent]);
+  const allowed = _computeNeighborsFor(mapParent);
   let added = false;
   for (const sgg of visibleSggs) {
     if (allowed.has(sgg)) continue;
@@ -1728,8 +1758,29 @@ function getCodeFromFeature(f, level) {
   return p.emdcd;
 }
 
+// 단일 진실: 지도 feature 스타일 계산. setStyle 콜백과 geoJSON style 콜백 모두 사용.
+function computeFeatureStyle(f, scale) {
+  const code = getCodeFromFeature(f, mapLevel);
+  const v = getMetricValue(code);
+  const anchor = S._previewBackup || S.selected;
+  const isExact = code === anchor;
+  const isSelected = isExact || anchor?.startsWith(code) || (S.multiViewActive && S.selection.has(code));
+  const isNeighbor = (mapLevel === 'emd' && mapParent && f.properties.sggcd !== mapParent)
+    || (mapLevel === 'sgg' && mapParent && f.properties.sidocd !== mapParent);
+  return {
+    fillColor: scale.getColor(v),
+    fillOpacity: isNeighbor ? 0.7 : 0.95,
+    color: isExact ? '#000' : (isSelected ? '#1A202C' : scale.getColor(v)),
+    weight: isExact ? 4 : (isSelected ? 2.5 : 0.5),
+    opacity: 1
+  };
+}
+
+let _renderMapToken = 0;
 async function renderMap() {
   if (!adk || !map) return;
+  const token = ++_renderMapToken;
+  const aborted = () => token !== _renderMapToken;
 
   const cacheKey = `${adkVersion}_${mapLevel}`;
   let fc;
@@ -1739,6 +1790,7 @@ async function renderMap() {
     setMapLoading(true);
     try {
       fc = await adk.get(adkVersion, mapLevel);
+      if (aborted()) return;
       mapGeoCache[cacheKey] = fc;
     } finally {
       setMapLoading(false);
@@ -1755,10 +1807,10 @@ async function renderMap() {
       if (!_sggNeighborCache[mapParent]) {
         const sggCacheKey = `${adkVersion}_sgg`;
         let sggFc = mapGeoCache[sggCacheKey];
-        if (!sggFc) { sggFc = await adk.get(adkVersion, 'sgg'); mapGeoCache[sggCacheKey] = sggFc; }
-        _computeSggNeighbors(sggFc);
+        if (!sggFc) { sggFc = await adk.get(adkVersion, 'sgg'); if (aborted()) return; mapGeoCache[sggCacheKey] = sggFc; }
+        _ensureSggBBoxes(sggFc);
       }
-      const allowed = _sggNeighborCache[mapParent] || new Set([mapParent]);
+      const allowed = _computeNeighborsFor(mapParent);
       features = fc.features.filter(f => allowed.has(f.properties.sggcd)).map(f => {
         if (f.properties.sggcd === mapParent) return f;
         return { ...f, geometry: _simplifyGeometry(f.geometry, 0.0002) };
@@ -1781,22 +1833,7 @@ async function renderMap() {
   if (window._sggBorderLayer) { map.removeLayer(window._sggBorderLayer); window._sggBorderLayer = null; }
 
   mapLayer = L.geoJSON(filteredFc, {
-    style(f) {
-      const code = getCodeFromFeature(f, mapLevel);
-      const v = getMetricValue(code);
-      const anchor = S._previewBackup || S.selected;
-      const isExact = code === anchor;
-      const isSelected = isExact || anchor?.startsWith(code) || (S.multiViewActive && S.selection.has(code));
-      const isNeighbor = (mapLevel === 'emd' && mapParent && f.properties.sggcd !== mapParent)
-        || (mapLevel === 'sgg' && mapParent && f.properties.sidocd !== mapParent);
-      return {
-        fillColor: scale.getColor(v),
-        fillOpacity: isNeighbor ? 0.7 : 0.95,
-        color: isExact ? '#000' : (isSelected ? '#1A202C' : scale.getColor(v)),
-        weight: isExact ? 4 : (isSelected ? 2.5 : 0.5),
-        opacity: 1
-      };
-    },
+    style: f => computeFeatureStyle(f, scale),
     onEachFeature(f, layer) {
       const code = getCodeFromFeature(f, mapLevel);
       layer._fCode = code;
@@ -1859,7 +1896,7 @@ async function renderMap() {
   if (mapLevel === 'emd' && mapParent) {
     const sggCacheKey = `${adkVersion}_sgg`;
     let sggFc = mapGeoCache[sggCacheKey];
-    if (!sggFc) { sggFc = await adk.get(adkVersion, 'sgg'); mapGeoCache[sggCacheKey] = sggFc; }
+    if (!sggFc) { sggFc = await adk.get(adkVersion, 'sgg'); if (aborted()) return; mapGeoCache[sggCacheKey] = sggFc; }
     window._sggBorderLayer = L.geoJSON({ type: 'FeatureCollection', features: sggFc.features }, {
       interactive: false,
       style(f) {
@@ -1877,7 +1914,7 @@ async function renderMap() {
   } else if (mapLevel === 'sgg' && mapParent) {
     const sidoCacheKey = `${adkVersion}_sido`;
     let sidoFc = mapGeoCache[sidoCacheKey];
-    if (!sidoFc) { sidoFc = await adk.get(adkVersion, 'sido'); mapGeoCache[sidoCacheKey] = sidoFc; }
+    if (!sidoFc) { sidoFc = await adk.get(adkVersion, 'sido'); if (aborted()) return; mapGeoCache[sidoCacheKey] = sidoFc; }
     window._sggBorderLayer = L.geoJSON({ type: 'FeatureCollection', features: sidoFc.features }, {
       interactive: false,
       style(f) {
@@ -1951,13 +1988,13 @@ function setMapViewLevel(lvl) {
       return;
     }
     mapParent = sgg;
+  } else if (lvl === 'sido') {
+    mapParent = null;
+  } else if (lvl === 'sgg') {
+    mapParent = (S.selected && S.selected.length === 2 && S.selected !== '00') ? S.selected : null;
   }
   document.querySelectorAll('[data-maplvl]').forEach(b => b.classList.toggle('active', b.dataset.maplvl === lvl));
   mapLevel = lvl;
-  if (lvl === 'sido') mapParent = null;
-  else if (lvl === 'sgg') {
-    mapParent = S.selected && S.selected.length === 2 && S.selected !== '00' ? S.selected : null;
-  }
   renderMap();
 }
 
@@ -2062,7 +2099,11 @@ async function init() {
   initMap();
 }
 
-init();
+init().catch(e => {
+  console.error('init failed:', e);
+  const m = document.getElementById('map-subtitle');
+  if (m) m.textContent = '초기화 실패 — 새로고침 해보세요';
+});
 </script>
 </body>
 </html>

@@ -232,6 +232,38 @@ body{font-family:'Gothic A1',sans-serif;background:var(--bg);color:var(--t1);min
 .btn-search:hover{background:var(--accent-dark)}
 .btn-search:active{transform:scale(.98)}
 
+/* Region Picker (unified search + breadcrumb) */
+.region-picker{position:relative;margin-bottom:6px}
+.region-picker input{width:100%;padding:9px 10px;background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.18);border-radius:6px;color:#fff;font-size:.82rem;font-family:inherit}
+.region-picker input::placeholder{color:rgba(255,255,255,.45)}
+.region-picker input:focus{outline:none;border-color:var(--accent)}
+.region-picker-results{position:absolute;left:0;top:100%;min-width:100%;width:max-content;max-width:380px;background:#243447;border:1px solid rgba(255,255,255,.2);border-radius:6px;max-height:340px;overflow-y:auto;z-index:300;margin-top:4px;display:none;box-shadow:0 8px 24px rgba(0,0,0,.45)}
+.rp-item{padding:8px 10px;font-size:.78rem;cursor:pointer;display:flex;align-items:center;gap:8px;border-bottom:1px solid rgba(255,255,255,.05)}
+.rp-item:hover,.rp-item.hover{background:rgba(255,255,255,.1)}
+.rp-level{font-size:.6rem;background:rgba(255,255,255,.1);padding:2px 5px;border-radius:3px;color:#bbb;flex-shrink:0;width:46px;text-align:center}
+.rp-name{flex:1;color:#fff;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.rp-act{background:rgba(52,152,219,.25);border:1px solid rgba(52,152,219,.5);color:#fff;font-size:.62rem;padding:3px 7px;border-radius:3px;cursor:pointer;font-family:inherit;flex-shrink:0}
+.rp-act:hover{background:var(--accent);border-color:var(--accent)}
+.rp-empty{padding:16px;font-size:.75rem;color:var(--t4);text-align:center}
+.breadcrumb{display:flex;flex-wrap:wrap;align-items:center;gap:3px;font-size:.72rem;margin:8px 0 6px;padding:7px 9px;background:rgba(255,255,255,.05);border-radius:6px;min-height:30px}
+.bc-item{color:#d0d4e0;cursor:pointer;padding:1px 5px;border-radius:3px;font-weight:600}
+.bc-item:hover{background:rgba(255,255,255,.15);color:#fff}
+.bc-item.current{color:#fff;cursor:default}
+.bc-item.current:hover{background:transparent}
+.bc-sep{color:var(--t4);font-size:.6rem}
+.bc-hint{font-size:.66rem;color:rgba(255,255,255,.45);margin-left:6px;font-style:italic}
+.region-dropdowns{margin-top:4px}
+.region-dropdowns summary{cursor:pointer;font-size:.7rem;color:var(--t4);padding:4px 0;list-style:none;display:flex;align-items:center;gap:5px;user-select:none}
+.region-dropdowns summary::-webkit-details-marker{display:none}
+.region-dropdowns summary::before{content:'▸';font-size:.65rem;transition:transform .2s;display:inline-block}
+.region-dropdowns[open] summary::before{transform:rotate(90deg)}
+.region-dropdowns select:disabled{opacity:.45;cursor:not-allowed}
+.region-dropdowns .hint{font-size:.62rem;color:var(--t4);margin:-4px 0 4px;padding-left:2px;font-style:italic}
+.map-loading{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(255,255,255,.78);z-index:500;font-size:.9rem;color:var(--t2);pointer-events:none;font-weight:600;border-radius:var(--radius)}
+.map-loading.hidden{display:none}
+.map-loading .spinner{width:18px;height:18px;border:2.5px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:rp-spin .8s linear infinite;margin-right:10px}
+@keyframes rp-spin{to{transform:rotate(360deg)}}
+
 /* Rankings */
 .rank-controls{display:flex;gap:8px;margin:0 0 14px;flex-wrap:wrap}
 .rank-metric-btn{padding:6px 14px;font-size:.75rem;font-weight:600;border:1px solid var(--border);border-radius:16px;background:var(--surface);color:var(--t3);cursor:pointer;font-family:inherit;transition:all .15s}
@@ -268,9 +300,19 @@ body{font-family:'Gothic A1',sans-serif;background:var(--bg);color:var(--t1);min
 
   <div class="sidebar-section">
     <h3>지역 선택</h3>
-    <select id="sel-sido"><option value="">시도 선택...</option></select>
-    <select id="sel-sgg"><option value="">시군구 선택...</option></select>
-    <select id="sel-emd"><option value="">읍면동 선택...</option></select>
+    <div class="region-picker">
+      <input id="region-search" type="text" placeholder="🔍 시도 · 시군구 · 읍면동 검색..." oninput="onRegionSearch(this.value)" onfocus="onRegionSearch(this.value)" onkeydown="onRegionSearchKey(event)" onblur="setTimeout(closeRegionResults,200)" autocomplete="off">
+      <div id="region-search-results" class="region-picker-results"></div>
+    </div>
+    <div id="breadcrumb" class="breadcrumb"></div>
+    <details class="region-dropdowns">
+      <summary>단계별 선택</summary>
+      <select id="sel-sido"><option value="">시도 선택...</option></select>
+      <div class="hint" id="hint-sgg" style="display:none">시도를 먼저 선택하세요</div>
+      <select id="sel-sgg" disabled><option value="">시군구 선택...</option></select>
+      <div class="hint" id="hint-emd" style="display:none">시군구를 먼저 선택하세요</div>
+      <select id="sel-emd" disabled><option value="">읍면동 선택...</option></select>
+    </details>
   </div>
 
   <div class="sidebar-section">
@@ -363,6 +405,7 @@ body{font-family:'Gothic A1',sans-serif;background:var(--bg);color:var(--t1);min
         </div>
       </div>
       <div id="map"></div>
+      <div id="map-loading" class="map-loading hidden"><div class="spinner"></div>지도 로딩 중...</div>
       <div id="map-legend" class="map-legend"></div>
     </div>
 
@@ -546,6 +589,8 @@ function selectRegion(code) {
     if (btn) { btn.classList.remove('active'); btn.textContent = '합산 결과 보기'; }
     _prevSelectedBeforeMulti = null;
   }
+  S._previewing = null;
+  S._previewBackup = null;
   S.selected = code;
   renderAll();
 }
@@ -720,6 +765,8 @@ function findSimilar(code, level, topN = 10) {
 // ===== RENDERING =====
 function renderAll() {
   if (!S.selected || !S.data) return;
+  renderBreadcrumb();
+  updateDropdownGuidance();
   renderKPI();
   renderPyramid();
   renderLift();
@@ -736,9 +783,11 @@ function renderAll() {
     mapLayer.setStyle(f => {
       const code = getCodeFromFeature(f, mapLevel);
       const v = getMetricValue(code);
-      const isSelected = code === S.selected || S.selected?.startsWith(code) || (S.multiViewActive && S.selection.has(code));
+      const anchor = S._previewBackup || S.selected;
+      const isExact = code === anchor;
+      const isSelected = isExact || anchor?.startsWith(code) || (S.multiViewActive && S.selection.has(code));
       const isNeighbor = (mapLevel === 'emd' && mapParent && f.properties.sggcd !== mapParent);
-      return { fillColor: scale.getColor(v), fillOpacity: isNeighbor ? 0.7 : 0.95, color: isSelected ? '#1A202C' : scale.getColor(v), weight: isSelected ? 2.5 : 0.5, opacity: 1 };
+      return { fillColor: scale.getColor(v), fillOpacity: isNeighbor ? 0.7 : 0.95, color: isExact ? '#000' : (isSelected ? '#1A202C' : scale.getColor(v)), weight: isExact ? 4 : (isSelected ? 2.5 : 0.5), opacity: 1 };
     });
   }
 }
@@ -1149,9 +1198,9 @@ function renderMultiChips() {
     const name = getRegionName(code);
     const parent = getParentName(code);
     const label = parent ? parent + ' ' + name : name;
-    return `<div class="multi-chip" title="${label}">
-      <span class="chip-name">${label}</span>
-      <button class="chip-x" onclick="removeFromMultiSelection('${code}')" title="해제">×</button>
+    return `<div class="multi-chip" title="${esc(label)}">
+      <span class="chip-name">${esc(label)}</span>
+      <button class="chip-x" onclick="removeFromMultiSelection('${esc(code)}')" title="해제">×</button>
     </div>`;
   }).join('');
 }
@@ -1193,6 +1242,185 @@ function toggleMultiView() {
     selectRegion(MULTI_CODE);
     if (adk) renderMap();
   }
+}
+
+// ===== HTML ESCAPE =====
+const _ESC = {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'};
+function esc(s) { return String(s ?? '').replace(/[&<>"']/g, c => _ESC[c]); }
+
+// ===== UNIFIED REGION PICKER =====
+let _regionPool = null;
+let _rpHover = 0;
+let _rpSearchTimer = null;
+
+function buildRegionPool() {
+  const pool = [{ code: '00', full: '전국', level: '전국', searchable: '전국' }];
+  for (const [code, info] of Object.entries(S.regionTree.sido)) {
+    const name = info.name.trim();
+    pool.push({ code, full: name, level: '시도', searchable: name });
+  }
+  for (const [code, info] of Object.entries(S.regionTree.sgg)) {
+    const sn = S.regionTree.sido[info.parent]?.name.trim() || '';
+    const name = info.name.trim();
+    pool.push({ code, full: sn + ' ' + name, level: '시군구', searchable: name + ' ' + sn });
+  }
+  for (const [code, info] of Object.entries(S.regionTree.emd)) {
+    const sgg = S.regionTree.sgg[info.parent];
+    const sn = sgg ? (S.regionTree.sido[sgg.parent]?.name.trim() || '') : '';
+    const sggName = sgg ? sgg.name.trim() : '';
+    const name = info.name.trim();
+    pool.push({ code, full: `${sn} ${sggName} ${name}`, level: '읍면동', searchable: name + ' ' + sggName + ' ' + sn });
+  }
+  _regionPool = pool;
+}
+
+function onRegionSearch(q) {
+  clearTimeout(_rpSearchTimer);
+  _rpSearchTimer = setTimeout(() => _doRegionSearch(q), 80);
+}
+
+function _doRegionSearch(q) {
+  const dd = document.getElementById('region-search-results');
+  q = (q || '').trim();
+  if (!q) { dd.style.display = 'none'; return; }
+  if (!_regionPool) buildRegionPool();
+  const ql = q.toLowerCase();
+  const all = _regionPool.filter(x => x.searchable.toLowerCase().includes(ql));
+  if (!all.length) {
+    dd.innerHTML = '<div class="rp-empty">결과 없음</div>';
+    dd.style.display = 'block';
+    return;
+  }
+  const CAP = 200;
+  const matches = all.slice(0, CAP);
+  _rpHover = 0;
+  let html = matches.map((r, i) => `
+    <div class="rp-item${i === 0 ? ' hover' : ''}" data-code="${esc(r.code)}" onmousedown="event.preventDefault();rpJump('${esc(r.code)}')">
+      <span class="rp-level">${esc(r.level)}</span>
+      <span class="rp-name">${esc(r.full)}</span>
+      <button class="rp-act" onmousedown="event.preventDefault();event.stopPropagation();rpAddToMulti('${esc(r.code)}')" title="다중 선택 합산에 추가">＋합산</button>
+    </div>
+  `).join('');
+  if (all.length > CAP) {
+    html += `<div class="rp-empty">총 ${all.length.toLocaleString()}건 중 ${CAP}건 표시 — 키워드를 더 좁혀 보세요</div>`;
+  }
+  dd.innerHTML = html;
+  dd.style.display = 'block';
+}
+
+function onRegionSearchKey(e) {
+  const dd = document.getElementById('region-search-results');
+  if (dd.style.display === 'none') return;
+  const items = dd.querySelectorAll('.rp-item');
+  if (!items.length) return;
+  if (e.key === 'ArrowDown') {
+    _rpHover = Math.min(_rpHover + 1, items.length - 1);
+    items.forEach((it, i) => it.classList.toggle('hover', i === _rpHover));
+    items[_rpHover].scrollIntoView({ block: 'nearest' });
+    e.preventDefault();
+  } else if (e.key === 'ArrowUp') {
+    _rpHover = Math.max(_rpHover - 1, 0);
+    items.forEach((it, i) => it.classList.toggle('hover', i === _rpHover));
+    items[_rpHover].scrollIntoView({ block: 'nearest' });
+    e.preventDefault();
+  } else if (e.key === 'Enter') {
+    const c = items[_rpHover]?.dataset.code;
+    if (c) rpJump(c);
+    e.preventDefault();
+  } else if (e.key === 'Escape') {
+    closeRegionResults();
+    document.getElementById('region-search').blur();
+  }
+}
+
+function closeRegionResults() {
+  const dd = document.getElementById('region-search-results');
+  if (dd) dd.style.display = 'none';
+}
+
+function rpJump(code) {
+  closeRegionResults();
+  const input = document.getElementById('region-search');
+  if (input) input.value = '';
+  navigateToRegion(code);
+}
+
+function rpAddToMulti(code) {
+  S.selection.add(code);
+  afterMultiSelectionChange();
+  onRegionSearch(document.getElementById('region-search').value);
+}
+
+// ===== BREADCRUMB =====
+function renderBreadcrumb() {
+  const bc = document.getElementById('breadcrumb');
+  if (!bc) return;
+  const code = S.selected;
+  if (code === MULTI_CODE) {
+    bc.innerHTML = `<span class="bc-item current">${S.selection.size}개 지역 합산</span>`;
+    return;
+  }
+  if (!code || code === '00') {
+    bc.innerHTML = `<span class="bc-item current">전국</span><span class="bc-hint">🔍 검색하거나 지도를 클릭하세요</span>`;
+    return;
+  }
+  const parts = [{ code: '00', name: '전국' }];
+  if (code.length >= 2) parts.push({ code: code.slice(0, 2), name: getRegionName(code.slice(0, 2)) });
+  if (code.length >= 5) parts.push({ code: code.slice(0, 5), name: getRegionName(code.slice(0, 5)) });
+  if (code.length === 10) parts.push({ code, name: getRegionName(code) });
+  bc.innerHTML = parts.map((p, i) => {
+    const isLast = i === parts.length - 1;
+    const sep = i > 0 ? '<span class="bc-sep">▸</span>' : '';
+    const cls = isLast ? 'bc-item current' : 'bc-item';
+    const onclick = isLast ? '' : ` onclick="navigateToRegion('${esc(p.code)}')"`;
+    return `${sep}<span class="${cls}"${onclick}>${esc(p.name)}</span>`;
+  }).join('');
+}
+
+// ===== DROPDOWN GUIDANCE =====
+function updateDropdownGuidance() {
+  const sidoVal = document.getElementById('sel-sido').value;
+  const sggVal = document.getElementById('sel-sgg').value;
+  const sggSel = document.getElementById('sel-sgg');
+  const emdSel = document.getElementById('sel-emd');
+  const hsgg = document.getElementById('hint-sgg');
+  const hemd = document.getElementById('hint-emd');
+  const sggDisabled = !sidoVal || sidoVal === '00';
+  const emdDisabled = !sggVal;
+  sggSel.disabled = sggDisabled;
+  emdSel.disabled = emdDisabled;
+  if (hsgg) hsgg.style.display = sggDisabled ? 'block' : 'none';
+  if (hemd) hemd.style.display = emdDisabled ? 'block' : 'none';
+}
+
+// ===== HOVER PREVIEW =====
+function previewRegion(code) {
+  if (!code || code === S.selected || code === S._previewing) return;
+  if (!S.data.regions[code]) return;
+  if (!S._previewing) S._previewBackup = S.selected;
+  S._previewing = code;
+  S.selected = code;
+  renderKPI();
+  renderPyramid();
+  renderLift();
+  renderBreadcrumb();
+}
+
+function clearPreview() {
+  if (!S._previewing) return;
+  S.selected = S._previewBackup;
+  S._previewing = null;
+  S._previewBackup = null;
+  renderKPI();
+  renderPyramid();
+  renderLift();
+  renderBreadcrumb();
+}
+
+// ===== MAP LOADING =====
+function setMapLoading(on) {
+  const el = document.getElementById('map-loading');
+  if (el) el.classList.toggle('hidden', !on);
 }
 
 // ===== NAVIGATION =====
@@ -1504,8 +1732,13 @@ async function renderMap() {
   if (mapGeoCache[cacheKey]) {
     fc = mapGeoCache[cacheKey];
   } else {
-    fc = await adk.get(adkVersion, mapLevel);
-    mapGeoCache[cacheKey] = fc;
+    setMapLoading(true);
+    try {
+      fc = await adk.get(adkVersion, mapLevel);
+      mapGeoCache[cacheKey] = fc;
+    } finally {
+      setMapLoading(false);
+    }
   }
 
   // Filter features for drill-down (cached per parent to avoid re-simplify on metric/palette change)
@@ -1547,14 +1780,16 @@ async function renderMap() {
     style(f) {
       const code = getCodeFromFeature(f, mapLevel);
       const v = getMetricValue(code);
-      const isSelected = code === S.selected || S.selected?.startsWith(code) || (S.multiViewActive && S.selection.has(code));
+      const anchor = S._previewBackup || S.selected;
+      const isExact = code === anchor;
+      const isSelected = isExact || anchor?.startsWith(code) || (S.multiViewActive && S.selection.has(code));
       const isNeighbor = (mapLevel === 'emd' && mapParent && f.properties.sggcd !== mapParent)
         || (mapLevel === 'sgg' && mapParent && f.properties.sidocd !== mapParent);
       return {
         fillColor: scale.getColor(v),
         fillOpacity: isNeighbor ? 0.7 : 0.95,
-        color: isSelected ? '#1A202C' : scale.getColor(v),
-        weight: isSelected ? 2.5 : 0.5,
+        color: isExact ? '#000' : (isSelected ? '#1A202C' : scale.getColor(v)),
+        weight: isExact ? 4 : (isSelected ? 2.5 : 0.5),
         opacity: 1
       };
     },
@@ -1569,6 +1804,7 @@ async function renderMap() {
           mapLayer.resetStyle(window._hoveredMapLayer);
         }
         window._hoveredMapLayer = this;
+        previewRegion(this._fCode);
         if (!this.getTooltip()) {
           const p = this._fProps;
           const pathParts = [];
@@ -1595,6 +1831,7 @@ async function renderMap() {
         this.closeTooltip();
         mapLayer.resetStyle(this);
         if (window._hoveredMapLayer === this) window._hoveredMapLayer = null;
+        clearPreview();
       });
 
       layer.on('click', function(e) {
@@ -1653,13 +1890,24 @@ async function renderMap() {
     }).addTo(map);
   }
 
-  // Fit bounds
-  if (mapLevel === 'emd' && mapParent) {
+  // Fit bounds — focus on selected region if specific, else parent context, else all
+  const anchor = S._previewBackup || S.selected;
+  let focusLayers = [];
+  if (anchor && anchor !== '00' && anchor !== MULTI_CODE) {
+    mapLayer.eachLayer(l => {
+      const c = getCodeFromFeature(l.feature, mapLevel);
+      if (c === anchor || (anchor.length > c.length && anchor.startsWith(c)) || (c.length > anchor.length && c.startsWith(anchor))) {
+        focusLayers.push(l);
+      }
+    });
+  }
+  if (focusLayers.length) {
+    try { map.fitBounds(L.featureGroup(focusLayers).getBounds(), { padding: [40, 40], maxZoom: mapLevel === 'emd' ? 13 : (mapLevel === 'sgg' ? 11 : 9) }); } catch(e) {}
+  } else if (mapLevel === 'emd' && mapParent) {
     const primaryLayers = [];
     mapLayer.eachLayer(l => { if (l.feature.properties.sggcd === mapParent) primaryLayers.push(l); });
     if (primaryLayers.length) {
-      const group = L.featureGroup(primaryLayers);
-      try { map.fitBounds(group.getBounds(), { padding: [40, 40] }); } catch(e) {}
+      try { map.fitBounds(L.featureGroup(primaryLayers).getBounds(), { padding: [40, 40] }); } catch(e) {}
     }
   } else {
     try { map.fitBounds(mapLayer.getBounds(), { padding: [20, 20] }); } catch(e) {}

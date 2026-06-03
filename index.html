@@ -184,6 +184,10 @@ a:focus-visible,button:focus-visible,select:focus-visible,input:focus-visible,[t
 .sm-kpi{flex:1;text-align:center;padding:3px 0;border-radius:4px;background:var(--bg)}
 .sm-kpi .v{font-weight:700;display:block}
 .sm-kpi .l{color:var(--t4);font-size:.5rem}
+.sm-head{display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:8px;margin-bottom:12px}
+.sm-sort{display:flex;gap:4px;flex-wrap:wrap}
+.sm-sort-btn{padding:4px 11px;font-size:.72rem;font-weight:600;border:1px solid var(--border);border-radius:14px;background:var(--surface);color:var(--t3);cursor:pointer;font-family:inherit;transition:all .15s}
+.sm-sort-btn.active{background:var(--accent);color:#fff;border-color:var(--accent)}
 
 /* Loading */
 .loading{display:flex;align-items:center;justify-content:center;height:200px;color:var(--t3);font-size:.85rem}
@@ -319,7 +323,7 @@ a:focus-visible,button:focus-visible,select:focus-visible,input:focus-visible,[t
       <input id="region-search" type="text" placeholder="🔍 시도 · 시군구 · 읍면동 검색..." aria-label="지역 검색 (시도·시군구·읍면동)" role="combobox" aria-expanded="false" aria-controls="region-search-results" aria-autocomplete="list" autocomplete="off">
       <div id="region-search-results" class="region-picker-results" role="listbox" aria-label="지역 검색 결과"></div>
     </div>
-    <div id="breadcrumb" class="breadcrumb"></div>
+    <div id="breadcrumb" class="breadcrumb" aria-live="polite"></div>
     <details class="region-dropdowns">
       <summary>단계별 선택</summary>
       <select id="sel-sido" aria-label="시도 선택"><option value="">시도 선택...</option></select>
@@ -468,8 +472,18 @@ a:focus-visible,button:focus-visible,select:focus-visible,input:focus-visible,[t
   </div>
 
   <div class="panel" style="margin-bottom:24px">
-    <div class="panel-title" id="sm-title">하위 행정구역</div>
-    <div class="panel-subtitle" id="sm-subtitle">클릭하여 해당 지역으로 이동</div>
+    <div class="sm-head">
+      <div>
+        <div class="panel-title" id="sm-title">하위 행정구역</div>
+        <div class="panel-subtitle" id="sm-subtitle">클릭하여 해당 지역으로 이동</div>
+      </div>
+      <div class="sm-sort" role="group" aria-label="하위 지역 정렬 기준">
+        <button type="button" class="sm-sort-btn active" data-smsort="name">이름순</button>
+        <button type="button" class="sm-sort-btn" data-smsort="pop">인구순</button>
+        <button type="button" class="sm-sort-btn" data-smsort="aging">고령화순</button>
+        <button type="button" class="sm-sort-btn" data-smsort="young">유소년순</button>
+      </div>
+    </div>
     <div id="small-multiples" class="small-multiples"><div class="loading">데이터 로딩 중</div></div>
   </div>
 
@@ -1048,6 +1062,7 @@ function renderMiniPyramid(code) {
   return `<div class="sim-mini-pyramid"><div class="sim-mini-male">${maleHtml}</div><div class="sim-mini-female">${femaleHtml}</div></div>`;
 }
 
+let _smSort = 'name';
 function renderSmallMultiples() {
   const container = document.getElementById('small-multiples');
   let children = [];
@@ -1082,7 +1097,13 @@ function renderSmallMultiples() {
     return;
   }
 
-  container.innerHTML = children.sort().map(code => {
+  const _smSortFns = {
+    name: (a, b) => getRegionName(a).localeCompare(getRegionName(b), 'ko'),
+    pop: (a, b) => (calcKPI(b).total || 0) - (calcKPI(a).total || 0),
+    aging: (a, b) => (parseFloat(calcKPI(b).agingIndex) || 0) - (parseFloat(calcKPI(a).agingIndex) || 0),
+    young: (a, b) => (parseFloat(calcKPI(b).youngRatio) || 0) - (parseFloat(calcKPI(a).youngRatio) || 0)
+  };
+  container.innerHTML = [...children].sort(_smSortFns[_smSort] || _smSortFns.name).map(code => {
     const r = S.data.regions[code];
     if (!r) return '';
     const name = r.name.trim();
@@ -2189,6 +2210,12 @@ function setupEventListeners() {
   // Ranking buttons
   document.querySelectorAll('.rank-metric-btn').forEach(btn => btn.addEventListener('click', () => setRankMetric(btn.dataset.rmetric)));
   document.querySelectorAll('.rank-order-btn').forEach(btn => btn.addEventListener('click', () => setRankOrder(btn.dataset.level, btn.dataset.order, btn)));
+  // 하위 행정구역(small-multiples) 정렬
+  document.querySelectorAll('[data-smsort]').forEach(btn => btn.addEventListener('click', () => {
+    _smSort = btn.dataset.smsort;
+    document.querySelectorAll('.sm-sort-btn').forEach(b => b.classList.toggle('active', b.dataset.smsort === _smSort));
+    renderSmallMultiples();
+  }));
 
   // ----- Delegation for dynamically-generated content (containers persist across re-renders) -----
   // mousedown fires before the search input's blur closes the dropdown

@@ -976,11 +976,11 @@ function renderSimilar() {
       const parentLine = parent ? `${parent} · ${popStr}` : popStr;
       const rankCls = idx === 0 ? 'gold' : idx === 1 ? 'silver' : idx === 2 ? 'bronze' : 'normal';
       const miniPyramid = renderMiniPyramid(item.code);
-      return `<div class="sim-item" onclick="navigateToRegion('${item.code}')">
+      return `<div class="sim-item" onclick="navigateToRegion('${esc(item.code)}')">
         <div class="sim-rank ${rankCls}">${idx + 1}</div>
         <div class="sim-info">
-          <div class="sim-name">${name}</div>
-          <div class="sim-parent">${parentLine}</div>
+          <div class="sim-name">${esc(name)}</div>
+          <div class="sim-parent">${esc(parentLine)}</div>
         </div>
         ${miniPyramid}
         <div class="sim-score">${(item.similarity * 100).toFixed(1)}%</div>
@@ -1062,8 +1062,8 @@ function renderSmallMultiples() {
     const borderColor = parseFloat(kpi.agingIndex) > 200 ? '#E74C3C44' :
                         parseFloat(kpi.agingIndex) < 50 ? '#2E86AB44' : 'var(--border)';
 
-    return `<div class="sm-card" style="border-color:${borderColor}" onclick="navigateToRegion('${code}')">
-      <div class="sm-card-title">${name}</div>
+    return `<div class="sm-card" style="border-color:${borderColor}" onclick="navigateToRegion('${esc(code)}')">
+      <div class="sm-card-title">${esc(name)}</div>
       <div class="sm-card-pop">${kpi.total ? kpi.total.toLocaleString() + '명' : ''}</div>
       <div class="sm-pyramid">${pyramidHtml}</div>
       <div class="sm-kpi-row">
@@ -1101,20 +1101,24 @@ function onMultiSearchInput(q) {
   if (!q) { dropdown.style.display = 'none'; return; }
   if (!_multiSearchPool) buildMultiSearchPool();
   const ql = q.toLowerCase();
-  const results = _multiSearchPool.filter(x => x.full.toLowerCase().includes(ql)).slice(0, 30);
-  if (!results.length) {
+  const all = _multiSearchPool.filter(x => x.full.toLowerCase().includes(ql));
+  if (!all.length) {
     dropdown.innerHTML = '<div class="search-empty">결과 없음</div>';
     dropdown.style.display = 'block';
     return;
   }
-  dropdown.innerHTML = results.map(r => {
+  const CAP = 200;
+  const results = all.slice(0, CAP);
+  let html = results.map(r => {
     const checked = S.selection.has(r.code) ? '✓' : '';
-    return `<div class="search-item" onmousedown="addFromMultiSearch('${r.code}')">
-      <span class="search-level">${r.level}</span>
-      <span class="search-name">${r.full}</span>
+    return `<div class="search-item" onmousedown="addFromMultiSearch('${esc(r.code)}')">
+      <span class="search-level">${esc(r.level)}</span>
+      <span class="search-name">${esc(r.full)}</span>
       <span class="search-check">${checked}</span>
     </div>`;
   }).join('');
+  if (all.length > CAP) html += `<div class="search-empty">총 ${all.length.toLocaleString()}건 중 ${CAP}건 표시</div>`;
+  dropdown.innerHTML = html;
   dropdown.style.display = 'block';
 }
 
@@ -1815,8 +1819,8 @@ async function renderMap() {
           const pathStr = pathParts.length > 1 ? pathParts.slice(0, -1).join(' > ') : '';
           const kpi = calcKPI(this._fCode);
           const pop = kpi.total ? kpi.total.toLocaleString() : '-';
-          const tt = `${pathStr ? `<div style="font-size:.65rem;color:rgba(255,255,255,.5);margin-bottom:2px">${pathStr}</div>` : ''}
-            <div class="tt-name">${name}</div>
+          const tt = `${pathStr ? `<div style="font-size:.65rem;color:rgba(255,255,255,.5);margin-bottom:2px">${esc(pathStr)}</div>` : ''}
+            <div class="tt-name">${esc(name)}</div>
             <div class="tt-row"><span class="tt-label">인구</span><span class="tt-val">${pop}명</span></div>
             <div class="tt-row"><span class="tt-label">고령화지수</span><span class="tt-val">${kpi.agingIndex || '-'}</span></div>
             <div class="tt-row"><span class="tt-label">유소년</span><span class="tt-val">${kpi.youngRatio || '-'}%</span></div>
@@ -2014,9 +2018,9 @@ function renderRankCard(level) {
     const fmt = rankMetric === 'pop' ? item.val.toLocaleString() : item.val.toFixed(1);
     const isSelected = item.code === S.selected;
     const bg = isSelected ? 'background:rgba(52,152,219,.08)' : '';
-    return `<tr style="${bg}" onclick="navigateToRegion('${item.code}')">
+    return `<tr style="${bg}" onclick="navigateToRegion('${esc(item.code)}')">
       <td class="rank-num">${i + 1}</td>
-      <td><div class="rank-name">${item.name}</div><div class="rank-parent">${item.parent}</div></td>
+      <td><div class="rank-name">${esc(item.name)}</div><div class="rank-parent">${esc(item.parent)}</div></td>
       <td class="rank-val">${fmt}</td>
       <td class="rank-bar-cell"><div class="rank-bar" style="width:${barW}%"></div></td>
     </tr>`;

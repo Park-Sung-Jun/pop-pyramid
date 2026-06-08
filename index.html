@@ -2273,8 +2273,21 @@ async function init() {
   populateSido();
   initControlDropdowns();
 
-  document.getElementById('sel-sido').value = '00';
-  selectRegion('00');
+  // 외부 딥링크 지원: ?code=<2/5/10자리 행정코드> 가 있으면 그 지역으로 시작(없거나 무효면 전국)
+  const _qcode = new URLSearchParams(location.search).get('code');
+  if (_qcode && S.data.regions[_qcode]) {
+    const _sido = _qcode.slice(0, 2);
+    document.getElementById('sel-sido').value = _sido;
+    if (_qcode.length >= 5) {
+      populateSgg(_sido);
+      const _sgg = document.getElementById('sel-sgg');
+      _sgg.disabled = false; _sgg.value = _qcode.slice(0, 5);
+    }
+    selectRegion(_qcode);
+  } else {
+    document.getElementById('sel-sido').value = '00';
+    selectRegion('00');
+  }
   renderMultiChips();
 
   initMap();

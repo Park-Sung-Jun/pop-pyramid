@@ -1449,7 +1449,11 @@ function renderBreadcrumb() {
   }
   const parts = [{ code: '00', name: '전국' }];
   if (code.length >= 2) parts.push({ code: code.slice(0, 2), name: getRegionName(code.slice(0, 2)) });
-  if (code.length >= 5) parts.push({ code: code.slice(0, 5), name: getRegionName(code.slice(0, 5)) });
+  if (code.length >= 5) {
+    const si = getSiParentCode(code.slice(0, 5));
+    if (si) parts.push({ code: si, name: getRegionName(si) });
+    parts.push({ code: code.slice(0, 5), name: getRegionName(code.slice(0, 5)) });
+  }
   if (code.length === 10) parts.push({ code, name: getRegionName(code) });
   bc.innerHTML = parts.map((p, i) => {
     const isLast = i === parts.length - 1;
@@ -1551,6 +1555,18 @@ function getRegionName(code) {
   return S.data.regions[code].name.trim();
 }
 
+// 일반시 행정구(예: 고양시 일산동구) 처리: 5자리 구 코드의 부모 '시' 코드를 반환.
+// KOSIS 코드에서 일반시는 ...0, 산하 구는 같은 4자리 + 비0 끝자리로 표현된다.
+// 영동군/증평군처럼 4자리만 우연히 겹치는 경우를 배제하기 위해 자식은 '구', 부모는 '시'로 끝날 때만 인정.
+function getSiParentCode(sgg) {
+  if (!sgg || sgg.length !== 5) return null;
+  const r = S.data?.regions;
+  if (!r || !r[sgg] || !r[sgg].name.trim().endsWith('구')) return null;
+  const parent = sgg.slice(0, 4) + '0';
+  if (parent === sgg || !r[parent] || !r[parent].name.trim().endsWith('시')) return null;
+  return parent;
+}
+
 function getRegionFullName(code) {
   if (code === MULTI_CODE) {
     const arr = [...S.selection];
@@ -1564,16 +1580,24 @@ function getRegionFullName(code) {
   if (!code) return '';
   const parts = [];
   if (code.length >= 2) parts.push(getRegionName(code.slice(0, 2)));
-  if (code.length >= 5) parts.push(getRegionName(code.slice(0, 5)));
+  if (code.length >= 5) {
+    const si = getSiParentCode(code.slice(0, 5));
+    if (si) parts.push(getRegionName(si));
+    parts.push(getRegionName(code.slice(0, 5)));
+  }
   if (code.length === 10) parts.push(getRegionName(code));
   return parts.join(' > ');
 }
 
 function getParentName(code) {
   if (code.length === 2) return '';
-  if (code.length === 5) return getRegionName(code.slice(0, 2));
+  if (code.length === 5) {
+    const si = getSiParentCode(code);
+    return getRegionName(code.slice(0, 2)) + (si ? ' ' + getRegionName(si) : '');
+  }
   if (code.length === 10) {
-    return getRegionName(code.slice(0, 2)) + ' ' + getRegionName(code.slice(0, 5));
+    const si = getSiParentCode(code.slice(0, 5));
+    return getRegionName(code.slice(0, 2)) + (si ? ' ' + getRegionName(si) : '') + ' ' + getRegionName(code.slice(0, 5));
   }
   return '';
 }

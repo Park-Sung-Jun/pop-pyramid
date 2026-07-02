@@ -253,7 +253,8 @@ a:focus-visible,button:focus-visible,select:focus-visible,input:focus-visible,[t
 /* Map */
 .map-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px}
 .map-controls{display:flex;gap:8px;align-items:center}
-.map-controls select{padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:.78rem;font-family:inherit;background:var(--surface);cursor:pointer}
+.map-controls .control-presets{margin:0}
+.map-controls select{padding:6px 28px 6px 10px;border:1px solid var(--border);border-radius:6px;font-size:.78rem;font-family:inherit;background:var(--surface);cursor:pointer}
 .map-controls select:focus{outline:none;border-color:var(--accent)}
 .map-back-btn{padding:6px 12px;border:1px solid var(--border);border-radius:6px;font-size:.75rem;font-family:inherit;background:var(--bg);cursor:pointer;transition:all .15s}
 .map-back-btn:hover{background:var(--accent);color:#fff;border-color:var(--accent)}
@@ -272,13 +273,15 @@ a:focus-visible,button:focus-visible,select:focus-visible,input:focus-visible,[t
 .leaflet-tooltip.map-tooltip-custom::before{border-right-color:rgba(26,32,44,.92)!important}
 
 @media(max-width:768px){
-  .map-header{min-width:0}
-  .map-controls{width:100%;max-width:100%;min-width:0;flex-direction:row;flex-wrap:nowrap!important;align-items:center;overflow-x:auto;overflow-y:hidden;padding-bottom:2px;-webkit-overflow-scrolling:touch;scrollbar-width:none}
+  .map-header{min-width:0;text-align:left}
+  .map-header .panel-subtitle{margin-bottom:6px}
+  .map-controls{display:flex!important;width:100%;max-width:100%;min-width:0;flex-direction:row!important;flex-wrap:nowrap!important;align-items:center!important;justify-content:flex-start!important;overflow-x:auto;overflow-y:hidden;padding-bottom:2px;-webkit-overflow-scrolling:touch;scrollbar-width:none}
   .map-controls::-webkit-scrollbar{display:none}
-  .map-controls .control-presets{flex:0 0 auto;flex-wrap:nowrap;justify-content:flex-start}
-  .map-controls select{flex:0 0 auto;min-width:104px;max-width:150px;white-space:nowrap}
-  .map-back-btn{flex:0 0 auto;white-space:nowrap}
-  #map-fullscreen-btn{max-width:96px;overflow:hidden;text-overflow:ellipsis}
+  .map-controls .control-presets{flex:0 0 auto;display:flex;flex-wrap:nowrap!important;justify-content:flex-start;gap:5px}
+  .map-controls .preset-btn{flex:0 0 auto;padding:5px 11px;white-space:nowrap}
+  .map-controls select{flex:0 0 auto;width:auto;min-width:94px;max-width:136px;height:32px;white-space:nowrap}
+  .map-back-btn{flex:0 0 auto;height:32px;padding:6px 10px;white-space:nowrap}
+  #map-fullscreen-btn{max-width:88px;overflow:hidden;text-overflow:ellipsis}
 }
 
 /* Search Button */
@@ -494,8 +497,8 @@ a:focus-visible,button:focus-visible,select:focus-visible,input:focus-visible,[t
           <div class="panel-title" id="map-title">전국 지도</div>
           <div class="panel-subtitle" id="map-subtitle">시도 단위 | 클릭하여 드릴다운</div>
         </div>
-        <div class="map-controls" style="flex-wrap:wrap" role="group" aria-label="지도 표시 옵션">
-          <div class="control-presets" style="margin:0" role="group" aria-label="지도 행정 단위">
+        <div class="map-controls" role="group" aria-label="지도 표시 옵션">
+          <div class="control-presets" role="group" aria-label="지도 행정 단위">
             <button type="button" class="preset-btn" data-maplvl="sido">시도</button>
             <button type="button" class="preset-btn active" data-maplvl="sgg">시군구</button>
             <button type="button" class="preset-btn" data-maplvl="emd">읍면동</button>

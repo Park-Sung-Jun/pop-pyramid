@@ -21,6 +21,77 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - name: Write runtime config
+        shell: bash
+        env:
+          KOSIS_TREND_PROXY: ${{ vars.KOSIS_TREND_PROXY }}
+          KOSIS_TREND_USER_STATS_ID: ${{ vars.KOSIS_TREND_USER_STATS_ID }}
+          KOSIS_PUBLIC_API_KEY: ${{ vars.KOSIS_PUBLIC_API_KEY }}
+          CAPTCHA_PROVIDER: ${{ vars.CAPTCHA_PROVIDER }}
+          CAPTCHA_SITE_KEY: ${{ vars.CAPTCHA_SITE_KEY }}
+          CAPTCHA_VERIFY_ENDPOINT: ${{ vars.CAPTCHA_VERIFY_ENDPOINT }}
+          TURNSTILE_SITE_KEY: ${{ vars.TURNSTILE_SITE_KEY }}
+          RECAPTCHA_SITE_KEY: ${{ vars.RECAPTCHA_SITE_KEY }}
+        run: |
+          python - <<'PY'
+          import json
+          import os
+
+          cfg = {}
+          for key in (
+              "KOSIS_TREND_PROXY",
+              "KOSIS_TREND_USER_STATS_ID",
+              "KOSIS_PUBLIC_API_KEY",
+              "CAPTCHA_PROVIDER",
+              "CAPTCHA_SITE_KEY",
+              "CAPTCHA_VERIFY_ENDPOINT",
+              "TURNSTILE_SITE_KEY",
+              "RECAPTCHA_SITE_KEY",
+          ):
+              val = os.environ.get(key, "").strip()
+              if val:
+                  cfg[key] = val
+
+          with open("runtime-env.json", "w", encoding="utf-8") as f:
+              json.dump(cfg, f, ensure_ascii=False)
+          PY
+      - name: Fetch KOSIS trend data
+        shell: bash
+        env:
+          KOSIS_API_KEY: ${{ secrets.KOSIS_API_KEY }}
+          KOSIS_TREND_USER_STATS_ID: ${{ vars.KOSIS_TREND_USER_STATS_ID }}
+        run: |
+          python - <<'PY'
+          import json
+          import os
+          import urllib.parse
+          import urllib.request
+
+          api_key = os.environ.get("KOSIS_API_KEY", "").strip()
+          user_stats_id = os.environ.get("KOSIS_TREND_USER_STATS_ID", "").strip()
+          if not api_key or not user_stats_id:
+              print("KOSIS trend cache skipped: missing KOSIS_API_KEY or KOSIS_TREND_USER_STATS_ID")
+              raise SystemExit(0)
+
+          params = urllib.parse.urlencode({
+              "method": "getList",
+              "apiKey": api_key,
+              "format": "json",
+              "jsonVD": "Y",
+              "userStatsId": user_stats_id,
+              "prdSe": "Y",
+              "startPrdDe": "1925",
+              "endPrdDe": "2070",
+          })
+          url = "https://kosis.kr/openapi/statisticsData.do?" + params
+          with urllib.request.urlopen(url, timeout=30) as resp:
+              payload = json.loads(resp.read().decode("utf-8"))
+
+          os.makedirs("data", exist_ok=True)
+          with open("data/trend_kosis.json", "w", encoding="utf-8") as f:
+              json.dump(payload, f, ensure_ascii=False)
+          print("KOSIS trend cache written")
+          PY
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:

@@ -34,7 +34,7 @@
   --radius:10px;--shadow:0 2px 12px rgba(0,0,0,.06);
 }
 *{margin:0;padding:0;box-sizing:border-box}
-body{font-family:'Gothic A1','Malgun Gothic','Apple SD Gothic Neo',sans-serif;background:var(--bg);color:var(--t1);min-height:100vh;display:flex}
+body{font-family:'Gothic A1','Malgun Gothic','Apple SD Gothic Neo',sans-serif;background:var(--bg);color:var(--t1);min-height:100vh;display:flex;word-break:keep-all}
 body:not(.human-ok) .mobile-toggle,body:not(.human-ok) .sidebar,body:not(.human-ok) .main{visibility:hidden;pointer-events:none}
 body.copy-locked{user-select:none;-webkit-user-select:none}
 body.copy-locked input,body.copy-locked textarea,body.copy-locked select,body.copy-locked button{user-select:auto;-webkit-user-select:auto}
@@ -251,8 +251,9 @@ a:focus-visible,button:focus-visible,select:focus-visible,input:focus-visible,[t
 .mobile-toggle{display:none;position:fixed;top:12px;left:12px;z-index:200;width:36px;height:36px;border-radius:8px;background:var(--sidebar);color:#fff;border:none;cursor:pointer;align-items:center;justify-content:center;font-size:1.2rem}
 
 /* Map */
-.map-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px}
-.map-controls{display:flex;gap:8px;align-items:center}
+.map-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;row-gap:8px}
+.map-header>div:first-child{min-width:140px}
+.map-controls{display:flex;gap:8px;align-items:center;flex-wrap:wrap;row-gap:6px}
 .map-controls .control-presets{margin:0}
 .map-controls select{padding:6px 28px 6px 10px;border:1px solid var(--border);border-radius:6px;font-size:.78rem;font-family:inherit;background:var(--surface);cursor:pointer}
 .map-controls select:focus{outline:none;border-color:var(--accent)}
@@ -2422,7 +2423,11 @@ async function renderMap() {
   const levelNames = { sido: '시도', sgg: '시군구', emd: '읍면동' };
   const parentName = mapParent ? getRegionName(mapParent) : '';
   document.getElementById('map-title').textContent = parentName ? parentName + ' ' + levelNames[mapLevel] : '전국 ' + levelNames[mapLevel];
-  document.getElementById('map-subtitle').textContent = `${levelNames[mapLevel]} 단위 | ${getMetricLabel()} | ${features.length}개 지역`;
+  // features는 주변 지역 context까지 포함할 수 있으므로(이웃 시군구/읍면동), 부제 개수는 실제 상위 지역 소속 개수로 별도 계산
+  let regionCount = features.length;
+  if (mapLevel === 'sgg' && mapParent) regionCount = features.filter(f => f.properties.sidocd === mapParent).length;
+  else if (mapLevel === 'emd' && mapParent) regionCount = features.filter(f => f.properties.sggcd === mapParent).length;
+  document.getElementById('map-subtitle').textContent = `${levelNames[mapLevel]} 단위 | ${getMetricLabel()} | ${regionCount}개 지역`;
   document.getElementById('map-back').style.display = mapParent ? 'inline-block' : 'none';
   document.querySelectorAll('[data-maplvl]').forEach(b => b.classList.toggle('active', b.dataset.maplvl === mapLevel));
 
@@ -2536,6 +2541,8 @@ function renderRanking() {
 function mapDrillUp() {
   if (mapLevel === 'emd' && mapParent) {
     navigateToRegion(mapParent.slice(0, 2));
+  } else if (mapLevel === 'sgg' && mapParent) {
+    setMapViewLevel('sido');
   } else if (mapLevel === 'sgg') {
     navigateToRegion('00');
   }
